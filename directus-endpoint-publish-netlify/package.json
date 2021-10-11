@@ -1,0 +1,20 @@
+{
+    "name": "@dwaring87/directus-endpoint-publish-node",
+    "version": "1.0.0",
+    "description": "A Directus v9 endpoint for building a local site from the Directus app",
+    "main": "src/index.js",
+    "scripts": {
+      "build": "",
+      "deploy": "DOTENV_CONFIG_PATH=../.env node scripts/deploy.js"
+    },
+    "repository": {
+      "type": "git",
+      "url": "github.com:dwaring87/directus-extension-publish-node"
+    },
+    "author": "David Waring <dev@davidwaring.net>",
+    "license": "MIT",
+    "devDependencies": {
+      "@directus/extensions-sdk": "^9.0.0-rc.92"
+    }
+  }
+  

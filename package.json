@@ -1,0 +1,14 @@
+{
+    "name": "@dwaring87/directus-extension-publish-netlify",
+    "workspaces": [
+        "./directus-module-publish-netlify",
+        "./directus-endpoint-publish-netlify"
+    ],
+    "scripts": {
+        "build": "npm run build --workspaces",
+        "deploy": "npm run deploy --workspaces"
+    },
+    "dependencies": {
+        "dotenv": "^10.0.0"
+    }
+}
