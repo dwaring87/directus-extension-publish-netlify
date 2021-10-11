@@ -1,8 +1,8 @@
 <template>
     <div>
 
-        <!-- List of Site Cards -->
-        <v-card class="site-card" v-if="lastActivityId" v-for="site in sites" v-bind:key="site[config.keys.id]">
+        <!-- Site Card -->
+        <v-card class="site-card" v-if="lastActivityId">
             
             <div v-if="build && !siteIsBuilding(site) && lastActivityId && siteUpdateAvailable(site)" class="site-card-update site-card-update-available">
                 <p><v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available</p>
@@ -64,26 +64,22 @@
                 v-bind:close="dialog ? dialog.close : undefined" v-on:close="dialog = undefined" 
                 v-bind:action="dialog ? dialog.action : undefined" v-on:action="function() { dialog ? dialog.onAction() : undefined }" />
 
-        <!-- Log Drawer -->
-        <LogDrawer v-bind:show="!!log" v-bind:site="log" v-on:close="onLogClose" />
-
     </div>
 </template>
 
 <script>
     import config from '../../../config.js';
     import Dialog from './dialog.vue';
-    import LogDrawer from './logDrawer.vue';
-    import { removeSite, buildSite, getLastActivityId } from '../settings.js';
+    import { getLastActivityId } from '../settings.js';
 
     export default {
         inject: ['api'],
 
-        components: { Dialog, LogDrawer },
+        components: { Dialog },
 
         props: {
-            sites: {
-                type: Array,
+            site: {
+                type: Object,
                 required: true
             },
             page: String
@@ -150,57 +146,6 @@
             onLogClose: function() {
                 this.log = undefined;
                 this.$emit('update');
-            },
-
-            /**
-             * Start the Build process for the specified Site
-             * - Flag the site as "Building"
-             * - Call the Build API endpoint
-             * - Refresh the sites when complete
-             */
-            startBuild: function(site) {
-                let vm = this;
-                site[vm.config.keys.status] = vm.config.statuses.started;
-                buildSite(vm.api, site[vm.config.keys.id], function(resp) {
-                    if ( resp && resp.error ) {
-                        vm.dialog = {
-                            title: "Build Error",
-                            message: "There was an error while running the build command for <strong>" + site[vm.config.keys.name] + "</strong> (" + resp.error + ").  View the log for more detailed information.",
-                            action: "Close",
-                            onAction: function() {
-                                vm.dialog = undefined;
-                                vm.$emit('update');
-                            }
-                        }
-                    }
-                    else {
-                        if ( !vm.log ) vm.$emit('update');
-                    }
-                });
-            },
-
-            /**
-             * Prompt the User to delete the selected Site
-             * @param {Site} site Site to delete
-             */
-            promptDeleteSite: function(site) {
-                let vm = this;
-                this.dialog = {
-                    title: "Delete Site?",
-                    message: "Are you sure you want to delete <strong>" + site[this.config.keys.name] + "</strong> from the Build Settings?  The Site will not be removed from the server.",
-                    close: "Cancel",
-                    action: "Delete",
-                    onAction: function() {
-                        vm.dialog = undefined;
-                        vm.$emit('loading');
-                        removeSite(vm.api, site[vm.config.keys.id], function(success) {
-                            if ( !success ) {
-                                alert("Error: Could not remove site!");
-                            }
-                            vm.$emit('update');
-                        });
-                    }
-                }
             }
 
         },

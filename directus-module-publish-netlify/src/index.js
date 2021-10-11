@@ -1,6 +1,5 @@
 import config from '../../config.js';
 import Build from './routes/build.vue';
-import Settings from './routes/settings.vue';
 
 export default {
     id: config.extension,
@@ -14,10 +13,6 @@ export default {
         {
             path: 'build',
             component: Build
-        },
-        {
-            path: 'settings',
-            component: Settings
         }
     ],
     preRegisterCheck: function(user) {

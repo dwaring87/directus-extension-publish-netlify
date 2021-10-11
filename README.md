@@ -1,4 +1,4 @@
-# Directus Extension: dwaring87-publish-node
+# Directus Extension: dwaring87-publish-netlify
 
 A Directus v9 Extension (including a frontend app module and a backend API endpoint) for initiating and monitoring a build of a static site using an npm package script on a locally installed source.
 
