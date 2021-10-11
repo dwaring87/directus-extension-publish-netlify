@@ -1,5 +1,5 @@
 <template>
-    <private-view title="Deploy Site">
+    <private-view title="Build Site">
         <template #headline>Publish</template>
 
         <template #title-outer:prepend>
@@ -20,8 +20,9 @@
         </Message>
 
         <!-- Site Card -->
-        <!-- <Site v-if="!loading && !setupMessage" v-bind:site="site" /> -->
-        {{ site }}
+        <Site v-if="!loading && !setupMessage" v-bind:site="site" v-on:update="update" />
+
+        
     </private-view>
 </template>
 
@@ -48,12 +49,12 @@
         methods: {
             
             /**
-             * Perform the initial Setup
+             * Update the Netlify Site
              * - Attempt to get Site from Netlify
              * - Display error messages, if failed
              * - Display site card, if successful
              */
-            setup: function() {
+            update: function() {
                 let vm = this;
                 getSite(vm.api, function(resp) {
                     vm.loading = false;
@@ -71,7 +72,7 @@
 
         mounted: function() {
             let vm = this;
-            vm.setup();
+            vm.update();
             getLastActivityId(vm.api, function(lastActivityId) {
                 vm.lastActivityId = lastActivityId;
             });

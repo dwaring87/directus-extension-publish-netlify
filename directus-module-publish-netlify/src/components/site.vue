@@ -4,56 +4,34 @@
         <!-- Site Card -->
         <v-card class="site-card" v-if="lastActivityId">
             
-            <div v-if="build && !siteIsBuilding(site) && lastActivityId && siteUpdateAvailable(site)" class="site-card-update site-card-update-available">
+            <div v-if="!siteIsBuilding && lastActivityId && siteUpdateAvailable" class="site-card-update site-card-update-available">
                 <p><v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available</p>
             </div>
-            <div v-if="build && !siteIsBuilding(site) && lastActivityId && !siteUpdateAvailable(site)" class="site-card-update site-card-update-none">
+            <div v-if="!siteIsBuilding && lastActivityId && !siteUpdateAvailable" class="site-card-update site-card-update-none">
                 <p><v-icon name="check_circle"></v-icon>&nbsp;&nbsp;Site Updated</p>
             </div>
-            <div v-if="build && siteIsBuilding(site)" class="site-card-update site-card-update-building">
+            <div v-if="siteIsBuilding" class="site-card-update site-card-update-building">
                 <p><v-icon name="build"></v-icon>&nbsp;&nbsp;Building<v-progress-circular indeterminate /></p>
             </div> 
 
-            <v-card-title>{{ site[config.keys.name] }}<span v-if="settings" class="id-badge">#{{ site[config.keys.id] }}</span></v-card-title>
-            <v-card-subtitle>{{ site[config.keys.url] }}</v-card-subtitle>
-            
+            <v-card-title>{{ site.name}}</v-card-title>
+            <v-card-subtitle>{{ site.url }}</v-card-subtitle>
+        
             <v-card-text>
-                <p v-if="settings">
-                    <strong>Path:</strong> 
-                    <code>{{ site[config.keys.path] }}</code>
-                </p>
-                <p v-if="settings">
-                    <strong>Build Command:</strong> 
-                    <code>npm run {{ site[config.keys.command] }}</code>
-                </p>
-                <p v-if="settings">
-                    <strong>Environment Variables:</strong>
-                    <ul v-for="(value, key) in site[config.keys.env]" class="envvar-list">
-                        <li :key="key">{{ key }}={{ value }}</li>
-                    </ul>
-                </p>
-                <p>
-                    <strong>Status:</strong> 
-                    {{ site[config.keys.status] ? site[config.keys.status] : 'Unknown' }}
-                </p>
+                <p><strong>State:</strong> {{ site.state }}</p>
                 <p>
                     <strong>Last Updated:</strong> 
-                    {{ site[config.keys.timestamp] ? new Date(parseInt(site[config.keys.timestamp])).toLocaleString() : 'Unknown' }}
+                    {{ new Date(site.updated_at).toLocaleString() }}
                 </p>
             </v-card-text>
             
+            <!-- General Actions -->
             <v-card-actions>
-                <v-button v-if="build" v-bind:href="site[config.keys.url]">
+                <v-button v-bind:href="site.url">
                     <v-icon name="launch"></v-icon>&nbsp;View
                 </v-button>
-                <v-button v-if="build && site[config.keys.log]" v-on:click="displayLog(site)">
-                    <v-icon name="text_snippet"></v-icon>&nbsp;Log
-                </v-button>
-                <v-button v-if="build" v-on:click="startBuild(site)" v-bind:disabled="siteIsBuilding(site) || (!config.allow_concurrent_builds && anySiteIsBuilding)">
-                    <v-icon name="build"></v-icon>&nbsp;Build
-                </v-button>
-                <v-button v-if="settings" v-on:click="promptDeleteSite(site)" class="danger">
-                    <v-icon name="delete"></v-icon>&nbsp;Delete
+                <v-button v-bind:href="site.admin_url">
+                    <v-icon name="settings"></v-icon>&nbsp;Settings
                 </v-button>
             </v-card-actions>
             
@@ -94,60 +72,26 @@
                 updateInterval: undefined
             }
         },
-        
+
         computed: {
-            build: function() {
-                return this.page === 'build';
+
+            siteUpdateAvailable: function() {
+                return false;
             },
-            settings: function() {
-                return this.page === 'settings';
-            },
-            anySiteIsBuilding: function() {
-                for ( let i = 0; i < this.sites.length; i++ ) {
-                    if ( this.sites[i][config.keys.status] === config.statuses.started ) {
-                        return true;
-                    }
-                }
+
+            siteIsBuilding: function() {
                 return false;
             }
+
         },
 
         methods: {
 
-            /**
-             * Check if there have been activity since the specified Site has last been updated
-             * @param {Site} site Site to check
-             * @returns {Boolean} true if the Site can be updated
-             */
-            siteUpdateAvailable: function(site) {
-                return this.lastActivityId && (parseInt(this.lastActivityId) > parseInt(site[this.config.keys.activity]));
-            },
-
-            /**
-             * Check if the Site is currently being built
-             * @param {Site} site Site to check
-             * @returns {Boolean} true if the site status is Building
-             */
-            siteIsBuilding: function(site) {
-                return site[this.config.keys.status] === this.config.statuses.started;
-            },
-
-            /**
-             * Display the Log dialog for the specified Site
-             * @param {Site} site Site to display log for
-             */
-            displayLog: function(site) {
-                this.log = site;
-            },
-
-            /**
-             * Dismiss the dialog and refresh the Sites after closing the Log Dialog
-             */
-            onLogClose: function() {
-                this.log = undefined;
-                this.$emit('update');
+            startDeploy: function() {
+                console.log("Start Deploy");
+                this.siteIsBuilding = true;
             }
-
+            
         },
 
         mounted: function() {
@@ -157,7 +101,7 @@
             });
             if ( !vm.updateInterval ) {
                 vm.updateInterval = setInterval(function() {
-                    if ( vm.anySiteIsBuilding ) {
+                    if ( vm.siteIsBuilding ) {
                         vm.$emit('update');
                     }
                 }, 1000);
