@@ -1,121 +1,79 @@
+const https = require('https');
 const config = require('./config.js');
 
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { exec } = require('child_process');
 
-module.exports = function registerEndpoint(router, { services }) {
+//
+// DIRECTUS QUERIES
+//
 
-    const { ActivityService, ItemsService } = services;
-
-    /**
-     * Build the specified Site
-     * - Create Temp File for Log
-     * - Update Status to Building...
-     * - Run the Build Command, saving output to Log
-     * - Return an error or success message
-     */
-    router.get('/build/:site', _checkAuth, async function(req, res) {
-        const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
-        const settingsService = new ItemsService(config.collection.collection, { schema: req.schema, accountability: req.accountability });
-        
-        // Lookup Site Info from DB
-        let site = await _getSiteInfo(settingsService, req.params.site);
-        if ( !site ) {
-            return res.send({error: "Site configuration not found in Settings"});
-        }
-
-        // Make Temp File for Log
-        let logFile = await _makeLogFile(settingsService, site);
-        if ( !logFile ) {
-            return res.send({error: "Could not create log file"});
-        }
-
-        // Update Status
-        let start_update_success = await _updateStatus(settingsService, site, config.statuses.started);
-        if ( !start_update_success ) {
-            return res.send({error: "Could not update Site status to Building in Settings"});
-        }
-
-        // Set command
-        let path = site[config.keys.path];
-        let command = site[config.keys.command];
-        let env = site[config.keys.env];
-        let env_string = "";
-        if ( env ) {
-            try {
-                env = JSON.parse(env);
-                for ( const key in env ) {
-                    if ( env.hasOwnProperty(key) ) {
-                        env_string += key + "=" + env[key] + " ";
-                    }
-                }
-            }
-            catch (err) {
-                console.log("ERROR: Could not parse env string into object");
-                console.log(err);
-            }
-        }
-        let cmd = env_string + "npm --no-color run --prefix \"" + path + "\" \"" + command + "\"";
-
-        // Run Build Command
-        let logStream = fs.createWriteStream(logFile);
-        var child = exec(cmd);
-        child.stdout.pipe(logStream);
-        child.stderr.pipe(logStream);
-        child.on('exit', async function(code) {
-            if ( code === 0 ) {
-                let finish_update_success = await _updateStatus(settingsService, site, config.statuses.completed);
-                if ( !finish_update_success ) {
-                    return res.send({error: "Could not update Site status to Published in Settings"});
-                }
-                let activity_update_success = await _updateActivity(activityService, settingsService, site);
-                if ( !activity_update_success ) {
-                    return res.send({error: "Could not update Site activity in Settings"});
-                }
-                return res.send({success: "Site successfully published"});
-            }
-            else {
-                let finish_update_success = await _updateStatus(settingsService, site, config.statuses.failed);
-                if ( !finish_update_success ) {
-                    return res.send({error: "Could not update Site status to Build Failed in Settings"});
-                }
-                return res.send({error: "The Build process failed - view log for details"});
-            }
+/**
+ * Get the most recent activity id
+ * @param {ActivityService} activityService Directus Activity Service
+ * @returns {Integer} activity_id
+ */
+async function _getActivityId(activityService) {
+    try {
+        let activity_rows = await activityService.readByQuery({ 
+            filter: config.activityFilter, 
+            sort: [{ column: "timestamp", order: "desc" }], 
+            limit: 1 
         });
+        if ( !activity_rows || activity_rows.length !== 1 ) {
+            return false;
+        }
+        let activity_id = activity_rows[0].id;
+        return activity_id;
+    }
+    catch (err) {
+        console.log(err);
+        return;
+    }
+}
 
-    });
+
+module.exports = function registerEndpoint(router, { services, env }) {
+
+    const { ActivityService } = services;
+    const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
+    const NETLIFY_SITE = env.NETLIFY_SITE;
+
+    // const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
+
+
+    //
+    // CUSTOM ENDPOINTS
+    //
 
     /**
-     * Get the status, timestamp, and log contents of the specified Site
+     * GET /site
+     * Get the info for the configured Netlify Site
      */
-    router.get('/status/:site', _checkAuth, async function(req, res) {
-        const settingsService = new ItemsService(config.collection.collection, { schema: req.schema, accountability: req.accountability });
+    router.get('/site', _checkAuth, async function(req, res) {
 
-        // Lookup Site Info from DB
-        let site = await _getSiteInfo(settingsService, req.params.site);
-        if ( !site ) {
-            return res.send({error: "Site configuration not found in Settings"});
+        // Check required Env Vars
+        if ( !NETLIFY_TOKEN || NETLIFY_TOKEN === "" ) {
+            res.send({error: "NETLIFY_TOKEN environment variable not set"});
+            return;
+        }
+        if ( !NETLIFY_SITE || NETLIFY_SITE === "" ) {
+            res.send({error: "NETLIFY_SITE environment variable not set"});
+            return;
         }
 
-        // Read Log File
-        let logContents;
-        try {
-            logContents = fs.readFileSync(site[config.keys.log], 'utf8');
-        } catch (err) {
-            console.error(err);
-        }
-
-        res.send({
-            status: site[config.keys.status],
-            timestamp: site[config.keys.timestamp],
-            log: logContents
+        // Get Site info from Netlify
+        _netlify_get("/sites?name=" + NETLIFY_SITE, function(err, resp) {
+            let site = resp && resp.length === 1 ? resp[0] : undefined;
+            let error = err ? err.toString() : !site ? 'The configured Netlify site could not be found' : undefined;
+            res.send({ error: error, site: site });
         });
 
     });
 
 
+
+    //
+    // MIDDLEWARE
+    //
 
     /**
      * Check to see if a User is logged in and has admin privileges
@@ -131,106 +89,70 @@ module.exports = function registerEndpoint(router, { services }) {
     }
 
 
+    //
+    // NETLIFY API FUNCTIONS
+    //
+
     /**
-     * Lookup Site info from DB (create object from key/value rows)
-     * @param {ItemsService} settingsService ItemsService for extension settings
-     * @param {int} site_id Site ID
-     * @returns {Object} Site Info object
+     * Make a GET request to the Nelify API
+     * @param {String} path API Path
+     * @param {Function} callback Callback function(err, results)
      */
-    async function _getSiteInfo(settingsService, site_id) {
-        try {
-            let rows = await settingsService.readByQuery({ 
-                filter: { site: { "_eq": site_id } }, 
-                fields: ['key', 'value'] 
-            });
-            let site = {};
-            for (let row of rows) {
-                site[row.key] = row.value;
+    function _netlify_get(path, callback) {
+        _netlify_api("GET", path, undefined, callback);
+    }
+
+    /**
+     * Make a generic request to the Netlify API
+     * @param {string} method HTTP Method
+     * @param {string} path API Path
+     * @param {Object} body POST / PUT Request Body
+     * @param {Function} callback Callback function(err, results)
+     */
+    function _netlify_api(method, path, body, callback) {
+        const options = {
+            headers: {
+                'Authorization': 'Bearer ' + NETLIFY_TOKEN
+            },
+            method: method,
+            hostname: 'api.netlify.com',
+            path: '/api/v1/' + path,
+            port: 443
+        }
+
+        const req = https.request(options, function(res) {
+
+            // Return failed API Request (not a 200 response)
+            let status = res.statusCode;
+            if ( status < 200 || status >= 300 ) {
+                return callback(new Error("Netlify API Request Failed [" + status + "]"));
             }
-            return rows.length > 0 ? site : undefined;
-        }
-        catch (err) {
-            console.log(err);
-            return;
-        }
-    }
 
-    /**
-     * Update the Build Status and Timestamp in the Settings
-     * @param {ItemsService} settingsService ItemsService for extension settings
-     * @param {Site} site Site Info object
-     * @param {String} status Site Build Status
-     * @returns {Boolean} success
-     */
-    async function _updateStatus(settingsService, site, status) {
-        try {
-            let status_update = await settingsService.updateByQuery(
-                { filter : { site: { "_eq": site[config.keys.id] }, key: { "_eq": config.keys.status } } },
-                { value: status }
-            );
-            let timestamp_update = await settingsService.updateByQuery(
-                { filter: { site: { "_eq": site[config.keys.id] }, key: { "_eq": config.keys.timestamp } } },
-                { value: new Date().getTime() }
-            );
-            return status_update && status_update.length === 1 && timestamp_update && timestamp_update.length === 1;
-        }
-        catch (err) {
-            console.log(err);
-            return false;
-        }
-    }
-
-    /**
-     * Update the build activity id for the specified Site in the Settings
-     * @param {ActivityService} activityService Directus Activity Service
-     * @param {ItemsService} settingsService ItemsService for extension settings
-     * @param {Site} site Site Info object
-     * @returns {Boolean} success
-     */
-    async function _updateActivity(activityService, settingsService, site) {
-        try {
-            let activity_rows = await activityService.readByQuery({ 
-                filter: config.activityFilter, 
-                sort: [{ column: "timestamp", order: "desc" }], 
-                limit: 1 
+            // Collect response data
+            let body = [];
+            res.on('data', function(chunk) {
+                body.push(chunk);
             });
-            if ( !activity_rows || activity_rows.length !== 1 ) {
-                return false;
-            }
-            let activity_id = activity_rows[0].id;
 
-            let activity_update = await settingsService.updateByQuery(
-                { filter: { site: { "_eq": site[config.keys.id] }, key: { "_eq": config.keys.activity } } },
-                { value: activity_id }
-            );
-            return activity_update && activity_update.length === 1; 
-        }
-        catch (err) {
-            console.log(err);
-            return false;
-        }
+            // Handle response data - return JSON data
+            res.on('end', function() {
+                try {
+                    body = JSON.parse(Buffer.concat(body).toString());
+                }
+                catch (e) {
+                    return callback(new Error("Netlify API Request Failed [" + e + "]"));
+                }
+                return callback(null, body);
+            });
+
+        });
+        
+        // Handle Network Error
+        req.on('error', function(err) {
+            console.log("Could not make Netlify API Request [" + err + "]");
+            return callback(err);
+        });
+
+        req.end();
     }
-
-    /**
-     * Create a temp file for the build log
-     * @param {ItemsService} settingsService ItemsService for extension settings
-     * @param {Site} site Site Info object
-     * @returns {String} Path to log file
-     */
-    async function _makeLogFile(settingsService, site) {
-        try {
-            let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), config.extension + "-"));
-            let logFile = path.join(tmpDir, "site-" + site[config.keys.id] + ".log");
-            let log_update = await settingsService.updateByQuery(
-                { filter: { site: { "_eq": site[config.keys.id] }, key: { "_eq": config.keys.log } } },
-                { value: logFile }
-            );
-            return log_update && log_update.length === 1 ? logFile : undefined;
-        }
-        catch (err) {
-            console.log(err);
-            return;
-        }
-    }
-
 };

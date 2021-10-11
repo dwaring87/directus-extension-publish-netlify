@@ -1,6 +1,17 @@
 import config from "../../config.js";
 
 /**
+ * Get the info for the configured Netlify Site
+ * @param {API} api Directus API
+ * @param {Function} callback Callback function({error, site})
+ */
+function getSite(api, callback) {
+    api.get(`/${config.extension}/site`).then(function(resp) {
+        return callback(resp && resp.data ? resp.data : {error: 'Unknown API Response'});
+    });
+}
+
+/**
  * Get the ID of the last Activity Item (excluding authenticate)
  * @param {API} api Directus API
  * @param {Function} calback Callback function(activity_id)
@@ -15,4 +26,4 @@ function getLastActivityId(api, callback) {
     });
 }
 
-export { getLastActivityId };
+export { getSite, getLastActivityId };

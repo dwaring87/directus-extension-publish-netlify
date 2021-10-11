@@ -13,21 +13,22 @@
             <v-progress-circular indeterminate />
         </div>
 
-        <!-- Setup Required -->
+        <!-- Setup Error -->
         <Message v-if="!loading && setupMessage" 
-                icon="settings" title="Setup Required" v-bind:subtitle="setupTitle">
+                icon="settings" title="Setup Error" v-bind:subtitle="setupTitle">
             {{ setupMessage }}
         </Message>
 
-        <!-- List of Sites -->
-        <Site v-if="!loading && !setupMessage" v-bind:site="site" page='deploy' />
+        <!-- Site Card -->
+        <!-- <Site v-if="!loading && !setupMessage" v-bind:site="site" /> -->
+        {{ site }}
     </private-view>
 </template>
 
 <script>
     import Message from '../components/message.vue';
     import Site from '../components/site.vue';
-    import { getLastActivityId } from '../settings.js';
+    import { getSite, getLastActivityId } from '../settings.js';
 
     export default {
         inject: ['api'],
@@ -46,17 +47,31 @@
 
         methods: {
             
+            /**
+             * Perform the initial Setup
+             * - Attempt to get Site from Netlify
+             * - Display error messages, if failed
+             * - Display site card, if successful
+             */
             setup: function() {
-
+                let vm = this;
+                getSite(vm.api, function(resp) {
+                    vm.loading = false;
+                    if ( !resp || !resp.site ) {
+                        vm.setupTitle = "Could not get Netlify Site";
+                        vm.setupMessage = resp.error ? resp.error : 'An unknown error occurred';
+                    }
+                    else {
+                        vm.site = resp.site;
+                    }
+                });
             }
 
         },
 
         mounted: function() {
             let vm = this;
-            
             vm.setup();
-
             getLastActivityId(vm.api, function(lastActivityId) {
                 vm.lastActivityId = lastActivityId;
             });
