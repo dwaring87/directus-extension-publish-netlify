@@ -20,7 +20,14 @@
         </Message>
 
         <!-- Site Card -->
-        <Site v-if="!loading && !setupMessage" v-bind:site="site" v-on:update="update" />
+        <Site v-if="!loading && !setupMessage" v-on:update="update" 
+                v-bind:site="site"
+                v-bind:lastActivityId="lastActivityId" />
+
+        <!-- Deploys Table -->
+        <Deploys v-if="!loading && !setupMessage" v-on:update="update"
+                v-bind:site="site"
+                v-bind:deploys="deploys" />
         
     </private-view>
 </template>
@@ -29,12 +36,13 @@
     import config from '../../../config.js';
     import Message from '../components/message.vue';
     import Site from '../components/site.vue';
-    import { getSite, getLastActivityId } from '../settings.js';
+    import Deploys from '../components/deploys.vue';
+    import { getSite, getDeploys, getLastActivityId } from '../settings.js';
 
     export default {
         inject: ['api'],
 
-        components: { Message, Site },
+        components: { Message, Site, Deploys },
 
         data: function() {
             return {
@@ -42,7 +50,9 @@
                 setupTitle: undefined,
                 setupMessage: undefined,
                 site: undefined,
+                deploys: undefined,
                 lastActivityId: undefined,
+                updateInterval: undefined
             }
         },
 
@@ -53,10 +63,11 @@
              * - Attempt to get Site from Netlify
              */
             update: async function() {
-                this.loading = true;
+                console.log("---> UPDATING <---");
                 this.setupTitle = undefined;
                 this.setupMessage = undefined;
 
+                // Get the Site
                 try {
                     this.site = await getSite(this.api);
                     if ( !this.site ) {
@@ -64,21 +75,54 @@
                     }
                 }
                 catch (error) {
-                    this.loading = false;
-                    this.setupTitle = "Could not get Netlify Site";
-                    this.setupMessage = error;
-                    return;
+                    return this.displayError("Could not get Netlify site", error);
+                }
+
+                // Get the Deploys
+                try {
+                    this.deploys = await getDeploys(this.api);
+                }
+                catch (error) {
+                    return this.displayError("Could not get Netlify site deploys", error);
+                }
+
+                // Get the Directus last activity id
+                try {
+                    this.lastActivityId = await getLastActivityId(this.api);
+                }
+                catch (error) {
+                    return this.displayError("Could not get Directus activity", error);
                 }
 
                 this.loading = false;
                 return;
+            },
+
+            /**
+             * Display a Setup error message
+             * @param {String} title Error title
+             * @param {String} message Error message
+             */
+            displayError: function(title, message) {
+                this.loading = false;
+                this.setupTitle = title;
+                this.setupMessage = message;
             }
 
         },
 
-        mounted: async function() {
+        mounted: function() {
+            this.loading = true;
             this.update();
-            this.lastActivityId = await getLastActivityId(this.api);
+            if ( !this.updateInterval ) {
+                this.updateInterval = setInterval(this.update, 5000);
+            }
+        },
+
+        beforeUnmount: function() {
+            if ( this.updateInterval ) {
+                clearInterval(this.updateInterval);
+            }
         }
     };
 </script>

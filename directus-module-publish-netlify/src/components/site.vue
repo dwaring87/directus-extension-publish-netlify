@@ -19,14 +19,26 @@
         
             <v-card-text>
                 <p><strong>State:</strong> {{ site.state }}</p>
-                <p>
-                    <strong>Last Updated:</strong> 
-                    {{ new Date(site.updated_at).toLocaleString() }}
-                </p>
+                <p><strong>Last Updated:</strong> {{ displayDate(site.updated_at) }}</p>
+
+                <br />
+
+                <template v-if="publishedDeploy">
+                    <p><strong>Published Deploy:</strong></p>
+                    <ul class="published_deploy_details">
+                        <li><strong>ID:</strong>  <span v-html="displayHash(publishedDeploy.id)"></span></li>
+                        <li><strong>Published:</strong> {{ displayDate(publishedDeploy.published_at) }}</li>
+                        <li><strong>Branch:</strong> {{ publishedDeploy.branch }}</li>
+                    </ul>
+                </template>
+                <v-notice v-else type="warning" center>Site not yet published</v-notice>
             </v-card-text>
             
             <!-- General Actions -->
             <v-card-actions>
+                <v-button class="warning" v-on:click="build" v-bind:disabled="siteIsBuilding">
+                    <v-icon name="build"></v-icon>&nbsp;Build
+                </v-button>
                 <v-button v-bind:href="site.url">
                     <v-icon name="launch"></v-icon>&nbsp;View
                 </v-button>
@@ -37,79 +49,86 @@
             
         </v-card>
 
-        <!-- Confirmation / Error Dialog -->
-        <Dialog v-bind:show="!!dialog" v-bind:title="dialog ? dialog.title : undefined" v-bind:message="dialog ? dialog.message : undefined" 
-                v-bind:close="dialog ? dialog.close : undefined" v-on:close="dialog = undefined" 
-                v-bind:action="dialog ? dialog.action : undefined" v-on:action="function() { dialog ? dialog.onAction() : undefined }" />
-
     </div>
 </template>
 
 <script>
     import config from '../../../config.js';
-    import Dialog from './dialog.vue';
-    import { getLastActivityId } from '../settings.js';
+    import { startBuild, getLastActivityId } from '../settings.js';
 
     export default {
         inject: ['api'],
-
-        components: { Dialog },
 
         props: {
             site: {
                 type: Object,
                 required: true
             },
-            page: String
+            lastActivityId: {
+                type: Number,
+                required: true
+            }
         },
 
         data: function() {
             return {
-                config: config,
-                lastActivityId: undefined,
-                dialog: undefined,
-                log: undefined,
-                updateInterval: undefined
+                building: false
             }
         },
 
         computed: {
 
+            /**
+             * Determine if the site has a data update
+             */
             siteUpdateAvailable: function() {
                 return false;
             },
 
+            /**
+             * Determine if the site is currently building
+             */
             siteIsBuilding: function() {
-                return false;
+                return this.building;
+            },
+
+            /**
+             * Get the currently published deploy for the site
+             */
+            publishedDeploy: function() {
+                return this.site ? this.site.published_deploy : undefined;
             }
 
         },
 
         methods: {
 
-            startDeploy: function() {
-                console.log("Start Deploy");
-                this.siteIsBuilding = true;
+            /**
+             * Format the date using the user's locale string
+             * @param {Date} date Date to format
+             */
+            displayDate: function(date) {
+                return new Date(date).toLocaleString();
+            },
+
+            /**
+             * Format a hash for display (first and last 4 characters)
+             * @param {String} hash Hash to format
+             */
+            displayHash: function(hash) {
+                let s = hash.substring(0, 4);
+                let e = hash.substring(hash.length-4);
+                return `<span style='font-family: monospace'>${s}...${e}</span>`;
+            },
+
+            /**
+             * Start the build process for the site
+             */
+            build: function() {
+                startBuild(this.api);
+                this.$emit('update');
             }
             
-        },
-
-        mounted: async function() {
-            let vm = this;
-            vm.lastActivityId = await getLastActivityId(vm.api);
-            if ( !vm.updateInterval ) {
-                vm.updateInterval = setInterval(function() {
-                    if ( vm.siteIsBuilding ) {
-                        vm.$emit('update');
-                    }
-                }, 1000);
-            }
-        },
-
-        beforeUnmount: function() {
-            if ( this.updateInterval ) {
-                clearInterval(this.updateInterval);
-            }
         }
     }
 </script>
@@ -142,32 +161,10 @@
     .v-progress-circular {
         float: right;
     }
-    .site-card span.id-badge {
-        background-color: var(--v-chip-background-color);
-        color: var(--v-chip-color);
-        border-radius: 5px;
-        margin-left: 10px;
-        width: 25px;
-        height: 25px;
-        text-align: center;
-        font-size: 14px;
-    }
-    .site-card code {
-        font-family: Monaco, monospace;
-        line-height: 100%;
-        padding: 0.2em;
-    }
-    .site-card .v-button.danger {
-        --v-button-color: var(--danger-alt);
-        --v-button-background-color: var(--danger);
-        --v-button-color-hover: var(--danger-alt);
-        --v-button-background-color-hover: var(--danger-125);
-    }
-    .site-card ul.envvar-list {
-        list-style: none;
-        padding-inline-start: 15px;
-    }
-    .site-card ul.envvar-list li {
-        font-family: monospace;
+    .site-card .v-button.warning {
+        --v-button-color: var(--warning-alt);
+        --v-button-background-color: var(--warning);
+        --v-button-color-hover: var(--warning-alt);
+        --v-button-background-color-hover: var(--warning-125);
     }
 </style>

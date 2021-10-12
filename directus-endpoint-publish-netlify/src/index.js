@@ -47,7 +47,7 @@ module.exports = async function registerEndpoint(router, { services, env }) {
         }
 
         try {
-            let site = await _netlify_get_site();
+            const site = await _netlify_get_site();
             return res.send({ site });
         }
         catch (error) {
@@ -57,55 +57,35 @@ module.exports = async function registerEndpoint(router, { services, env }) {
 
 
     /**
-     * GET /hook
-     * Get the build hook for the configured Netlify site
+     * GET /deploys
+     * Get the deploys for the configured Netlify site
      */
-    router.get('/hook', _checkAuth, async function(req, res) {
+    router.get('/deploys', _checkAuth, async function(req, res) {
         try {
-            let site = await _netlify_get_site();            
-            let site_id = site.site_id;
-            let hooks = await _netlify_get(`/sites/${site_id}/build_hooks`);
-
-            let hook;
-            if ( hooks ) {
-                for (let i = 0; i < hooks.length; i++ ) {
-                    if ( hooks[i].title === config.extension_build_hook ) {
-                        hook = hooks[i];
-                    }
-                }
-            }
-
-            return res.send({ hook });
+            const site = await _netlify_get_site();
+            const deploys = await _netlify_get(`/sites/${site.site_id}/deploys`);
+            return res.send({ deploys });
         }
-        catch(error) {
+        catch (error) {
             return res.send({ error: error.message });
         }
     });
 
 
     /**
-     * POST /hook
-     * Create the extesion build hook for the configured Netlify site
+     * POST /builds
+     * Start a new build for the configured Netlify site
      */
-    router.post('/hook', _checkAuth, async function(req, res) {
+    router.post('/builds', _checkAuth, async function(req, res) {
         try {
-            let site = await _netlify_get_site();           
-            let site_id = site.site_id;
-            let branch = site.build_settings.repo_branch;
-            
-            let body = {
-                title: config.extension_build_hook,
-                branch: branch
-            }
-            let hook = await _netlify_post(`/sites/${site_id}/build_hooks`, body);
-            
-            return res.send({ hook })
+            const site = await _netlify_get_site();
+            const build = await _netlify_post(`/sites/${site.site_id}/builds`);
+            return res.send({ build });
         }
-        catch(error) {
+        catch (error) {
             return res.send({ error: error.message });
         }
     });
-
 
 
     //
@@ -219,7 +199,6 @@ module.exports = async function registerEndpoint(router, { services, env }) {
                     catch (e) {
                         return reject(new Error("Netlify API Request Failed [" + e + "]"));
                     }
-                    console.log(body);
                     return resolve(body);
                 });
 
