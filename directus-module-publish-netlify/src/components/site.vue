@@ -94,11 +94,9 @@
             
         },
 
-        mounted: function() {
+        mounted: async function() {
             let vm = this;
-            getLastActivityId(vm.api, function(lastActivityId) {
-                vm.lastActivityId = lastActivityId;
-            });
+            vm.lastActivityId = await getLastActivityId(vm.api);
             if ( !vm.updateInterval ) {
                 vm.updateInterval = setInterval(function() {
                     if ( vm.siteIsBuilding ) {

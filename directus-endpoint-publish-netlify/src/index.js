@@ -12,31 +12,21 @@ const config = require('./config.js');
  * @returns {Integer} activity_id
  */
 async function _getActivityId(activityService) {
-    try {
-        let activity_rows = await activityService.readByQuery({ 
-            filter: config.activityFilter, 
-            sort: [{ column: "timestamp", order: "desc" }], 
-            limit: 1 
-        });
-        if ( !activity_rows || activity_rows.length !== 1 ) {
-            return false;
-        }
-        let activity_id = activity_rows[0].id;
-        return activity_id;
-    }
-    catch (err) {
-        console.log(err);
-        return;
-    }
+    let activity_rows = await activityService.readByQuery({ 
+        filter: config.activityFilter, 
+        sort: [{ column: "timestamp", order: "desc" }], 
+        limit: 1 
+    });
+    return activity_rows && activity_rows.length === 1 ? activity_rows[0].id : undefined;
 }
 
 
-module.exports = function registerEndpoint(router, { services, env }) {
+module.exports = async function registerEndpoint(router, { services, env }) {
 
-    const { ActivityService } = services;
     const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
     const NETLIFY_SITE = env.NETLIFY_SITE;
 
+    // const { ActivityService } = services;
     // const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
 
 
@@ -46,49 +36,74 @@ module.exports = function registerEndpoint(router, { services, env }) {
 
     /**
      * GET /site
-     * Get the info for the configured Netlify Site
+     * Get the info for the configured Netlify site
      */
-    router.get('/site', _checkAuth, function(req, res) {
-
-        // Check required Env Vars
+    router.get('/site', _checkAuth, async function(req, res) {
         if ( !NETLIFY_TOKEN || NETLIFY_TOKEN === "" ) {
-            res.send({error: "NETLIFY_TOKEN environment variable not set"});
-            return;
+            return res.send({ error: "NETLIFY_TOKEN environment variable not set" });
         }
         if ( !NETLIFY_SITE || NETLIFY_SITE === "" ) {
-            res.send({error: "NETLIFY_SITE environment variable not set"});
-            return;
+            return res.send({ error: "NETLIFY_SITE environment variable not set" });
         }
 
-        // Get Site info from Netlify
-        _netlify_get(`/sites?name=${NETLIFY_SITE}`, function(err, resp) {
-            let site = resp && resp.length === 1 ? resp[0] : undefined;
-            let error = err ? err.toString() : !site ? 'The configured Netlify site could not be found' : undefined;
-            res.send({ error: error, site: site });
-        });
-
+        try {
+            let site = await _netlify_get_site();
+            return res.send({ site });
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
     });
 
 
-    router.get('/hooks/:site', _checkAuth, function(req, res) {
-        let site_id = req.params.site;
-        _netlify_get(`/sites/${site_id}/build_hooks`, function(err, resp) {
-            let hooks = resp ? resp : [];
-            res.send({ error: err, hooks: hooks });
-        });
+    /**
+     * GET /hook
+     * Get the build hook for the configured Netlify site
+     */
+    router.get('/hook', _checkAuth, async function(req, res) {
+        try {
+            let site = await _netlify_get_site();            
+            let site_id = site.site_id;
+            let hooks = await _netlify_get(`/sites/${site_id}/build_hooks`);
+
+            let hook;
+            if ( hooks ) {
+                for (let i = 0; i < hooks.length; i++ ) {
+                    if ( hooks[i].title === config.extension_build_hook ) {
+                        hook = hooks[i];
+                    }
+                }
+            }
+
+            return res.send({ hook });
+        }
+        catch(error) {
+            return res.send({ error: error.message });
+        }
     });
 
 
-    router.post('/hooks/:site/:branch', _checkAuth, function(req, res) {
-        let site_id = req.params.site;
-        let branch = req.params.branch;
-        let body = {
-            title: config.extension_build_hook,
-            branch: branch
-        };
-        _netlify_post(`/sites/${site_id}/build_hooks`, body, function(err, resp) {
-            res.send({ error: err, hook: resp });
-        })
+    /**
+     * POST /hook
+     * Create the extesion build hook for the configured Netlify site
+     */
+    router.post('/hook', _checkAuth, async function(req, res) {
+        try {
+            let site = await _netlify_get_site();           
+            let site_id = site.site_id;
+            let branch = site.build_settings.repo_branch;
+            
+            let body = {
+                title: config.extension_build_hook,
+                branch: branch
+            }
+            let hook = await _netlify_post(`/sites/${site_id}/build_hooks`, body);
+            
+            return res.send({ hook })
+        }
+        catch(error) {
+            return res.send({ error: error.message });
+        }
     });
 
 
@@ -106,7 +121,7 @@ module.exports = function registerEndpoint(router, { services, env }) {
             next();
         }
         else {
-            res.send({error: "You must be logged in with admin privileges"});
+            res.send({ error: "You must be logged in with admin privileges" });
         }
     }
 
@@ -116,16 +131,42 @@ module.exports = function registerEndpoint(router, { services, env }) {
     //
 
     /**
-     * Make a GET request to the Nelify API
-     * @param {String} path API Path
-     * @param {Function} callback Callback function(err, results)
+     * Get the configured Netlify site
+     * @returns {Object} Site info
      */
-    function _netlify_get(path, callback) {
-        _netlify_api("GET", path, undefined, callback);
+    function _netlify_get_site() {
+        return new Promise(async function(resolve, reject) {
+            try {
+                const resp = await _netlify_get(`/sites?name=${NETLIFY_SITE}`);
+                let site = resp && resp.length === 1 ? resp[0] : undefined;
+                if ( !site ) {
+                    return reject('The configured Netlify site could not be found');
+                }
+                return resolve(site);
+            }
+            catch (err) {
+                return reject(err);
+            }
+        });
     }
 
-    function _netlify_post(path, body, callback) {
-        _netlify_api("POST", path, body, callback);
+    /**
+     * Make a GET request to the Nelify API
+     * @param {String} path API Path
+     * @returns {Object} API Response
+     */
+    async function _netlify_get(path) {
+        return await _netlify_api("GET", path, undefined);
+    }
+
+    /**
+     * Make a POST request to the Netlify API
+     * @param {String} path API Path
+     * @param {Object} body Post Request Body 
+     * @returns {Object} API Response
+     */
+    async function _netlify_post(path, body) {
+        return await _netlify_api("POST", path, body);
     }
 
     /**
@@ -133,65 +174,67 @@ module.exports = function registerEndpoint(router, { services, env }) {
      * @param {string} method HTTP Method
      * @param {string} path API Path
      * @param {Object} body POST / PUT Request Body
-     * @param {Function} callback Callback function(err, results)
+     * @returns {Object} API Response
      */
-    function _netlify_api(method, path, body, callback) {
-        console.log("===> API: [" + method + "] " + path);
+    async function _netlify_api(method, path, body) {
+        return new Promise(function(resolve, reject) {
+            console.log("===> API: [" + method + "] " + path);
 
-        let headers = {
-            Authorization: 'Bearer ' + NETLIFY_TOKEN
-        }
-        if ( body ) {
-            body = JSON.stringify(body);
-            headers['Content-Type'] = 'application/json';
-            headers['Content-Length'] = body.length
-        }
-
-        const options = {
-            headers: headers,
-            method: method,
-            hostname: 'api.netlify.com',
-            path: '/api/v1/' + path,
-            port: 443
-        }
-
-        const req = https.request(options, function(res) {
-
-            // Return failed API Request (not a 200 response)
-            let status = res.statusCode;
-            if ( status < 200 || status >= 300 ) {
-                return callback(new Error("Netlify API Request Failed [" + status + "]"));
+            let headers = {
+                Authorization: 'Bearer ' + NETLIFY_TOKEN
+            }
+            if ( body ) {
+                body = JSON.stringify(body);
+                headers['Content-Type'] = 'application/json';
+                headers['Content-Length'] = body.length
             }
 
-            // Collect response data
-            let body = [];
-            res.on('data', function(chunk) {
-                body.push(chunk);
+            const options = {
+                headers: headers,
+                method: method,
+                hostname: 'api.netlify.com',
+                path: '/api/v1/' + path,
+                port: 443
+            }
+
+            const req = https.request(options, function(res) {
+
+                // Return failed API Request (not a 200 response)
+                let status = res.statusCode;
+                if ( status < 200 || status >= 300 ) {
+                    return reject(new Error("Netlify API Request Failed [" + status + "]"));
+                }
+
+                // Collect response data
+                let body = [];
+                res.on('data', function(chunk) {
+                    body.push(chunk);
+                });
+
+                // Handle response data - return JSON data
+                res.on('end', function() {
+                    try {
+                        body = JSON.parse(Buffer.concat(body).toString());
+                    }
+                    catch (e) {
+                        return reject(new Error("Netlify API Request Failed [" + e + "]"));
+                    }
+                    console.log(body);
+                    return resolve(body);
+                });
+
+            });
+            
+            // Handle Network Error
+            req.on('error', function(err) {
+                console.log("Could not make Netlify API Request [" + err + "]");
+                return reject(err);
             });
 
-            // Handle response data - return JSON data
-            res.on('end', function() {
-                try {
-                    body = JSON.parse(Buffer.concat(body).toString());
-                }
-                catch (e) {
-                    return callback(new Error("Netlify API Request Failed [" + e + "]"));
-                }
-                console.log(body);
-                return callback(null, body);
-            });
+            // Add Body
+            if ( body ) req.write(body);
 
+            req.end();
         });
-        
-        // Handle Network Error
-        req.on('error', function(err) {
-            console.log("Could not make Netlify API Request [" + err + "]");
-            return callback(err);
-        });
-
-        // Add Body
-        if ( body ) req.write(body);
-
-        req.end();
     }
 };

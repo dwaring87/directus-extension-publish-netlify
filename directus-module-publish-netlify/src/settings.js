@@ -3,60 +3,45 @@ import config from "../../config.js";
 /**
  * Get the info for the configured Netlify Site
  * @param {API} api Directus API
- * @param {Function} callback Callback function(error, site)
+ * @returns {Object} Site info
  */
-function getSite(api, callback) {
-    api.get(`/${config.extension}/site`).then(function(resp) {
-        let error = resp.data && resp.data.error ? resp.data.error : undefined;
-        let site = resp.data && resp.data.site ? resp.data.site : undefined;
-        return callback(error, site);
-    });
+async function getSite(api) {
+    const { data } = await api.get(`/${config.extension}/site`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.site ? data.site : undefined;
 }
 
 /**
  * Get the extension's build hook for the site
  * @param {API} api Directus API
- * @param {Object} site Netlify Site
- * @param {Function} callback Callback function(hook)
+ * @returns {Object} Extension build hook
  */
-function getHook(api, site, callback) {
-    api.get(`/${config.extension}/hooks/${site.site_id}`).then(function(resp) {
-        let hooks = resp && resp.data && resp.data.hooks ? resp.data.hooks : [];
-        let hook;
-        for ( let i = 0; i < hooks.length; i++ ) {
-            if ( hooks[i].title === config.extension_build_hook ) {
-                hook = hooks[i];
-            }
-        }
-        return callback(hook);
-    });
+async function getHook(api, site, callback) {
+    const { data } = await api.get(`/${config.extension}/hook`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.hook ? data.hook : undefined;
 }
 
 /**
  * Create the extension's build hook for the site
  * @param {API} api Directus API
- * @param {Object} site Netlify Site
- * @param {Function} callback Callback function(hook)
+ * @returns {Object} Extension build hook
  */
-function createHook(api, site, callback) {
-    api.post(`/${config.extension}/hooks/${site.site_id}/${site.build_settings.repo_branch}`).then(function(resp) {
-        return callback(resp && resp.data && resp.data.hook ? resp.data.hook : undefined);
-    });
+async function createHook(api, site, callback) {
+    const { data } = await api.post(`/${config.extension}/hook`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.hook ? data.hook : undefined;
 }
 
 /**
  * Get the ID of the last Activity Item (excluding authenticate)
  * @param {API} api Directus API
- * @param {Function} calback Callback function(activity_id)
+ * @returns {integer} ID of most recent activity
  */
-function getLastActivityId(api, callback) {
+async function getLastActivityId(api, callback) {
     let filter = JSON.stringify(config.activityFilter);
-    api.get(`/activity?filter=${filter}&sort=-timestamp&limit=1`).then(function(res) {
-        return callback(res && res.data && res.data.data && res.data.data.length > 0 ? res.data.data[0].id : 0);
-    }).catch(function(err) {
-        console.log(err);
-        return callback();
-    });
+    const { data } = await api.get(`/activity?filter=${filter}&sort=-timestamp&limit=1`)
+    return data && data.data && data.data.length > 0 ? data.data[0].id : 0
 }
 
 export { getSite, getHook, createHook, getLastActivityId };

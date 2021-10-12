@@ -55,48 +55,66 @@
         },
 
         methods: {
-            
+
             /**
-             * Update the Netlify Site
+             * Perform the initial Setup
              * - Attempt to get Site from Netlify
-             * - Display error messages, if failed
-             * - Display site card, if successful
+             * - Attempt to get extension build hook
              */
-            update: function() {
-                let vm = this;
-                vm.setupTitle = undefined;
-                vm.setupMessage = undefined;
+            setup: async function() {
+                this.loading = true;
+                this.setupTitle = undefined;
+                this.setupMessage = undefined;
 
-                // Get the configured Site
-                getSite(vm.api, function(err, site) {
-                    vm.loading = false;
-                    vm.site = site;
-                    
-                    // Site not retrieved...
-                    if ( err || !site ) {
-                        vm.setupTitle = "Could not get Netlify site";
-                        vm.setupMessage = err ? err : 'The site could not be retrieved via Netlify API';
-                    }
+                await this.updateSite();
+                if ( this.site ) {
+                    await this.updateBuildHook();
+                }
 
-                    else {
-
-                        // Get the extension's build hook
-                        getHook(vm.api, vm.site, function(hook) {
-                            vm.hook = hook;
-   
-                            // Build hook not found...
-                            if ( !vm.hook ) {
-                                vm.setupTitle = "Build hook not found";
-                                vm.setupMessage = "The extension needs to first create a build hook in order to trigger a Netlify build";
-                                vm.promptCreateHook();
-                            }
-
-                        });
-
-                    }
-                });
+                this.loading = false;
+                return;
             },
 
+            /**
+             * Update the site info from Netlify
+             */
+            updateSite: async function() {
+                try {
+                    this.site = await getSite(this.api);
+                    if ( !this.site ) {
+                        throw new Error("The site could not be retrieved via Netlify API");
+                    }
+                }
+                catch (error) {
+                    this.loading = false;
+                    this.setupTitle = "Could not get Netlify Site";
+                    this.setupMessage = error;
+                    return;
+                }
+            },
+
+            /**
+             * Update the extension Build Hook from Netlify
+             */
+            updateBuildHook: async function() {
+                try {
+                    this.hook = await getHook(this.api);
+                    if ( !this.hook ) {
+                        throw new Error("The extension needs to first create a build hook in order to trigger a Netlify build");
+                    }
+                }
+                catch (error) {
+                    this.loading = false;
+                    this.setupTitle = "Could not get Netlify build hook";
+                    this.setupMessage = error;
+                    this.promptCreateHook();
+                    return;
+                }
+            },
+
+            /**
+             * Prompt the user to create a new build hook
+             */
             promptCreateHook: function() {
                 let vm = this;
 
@@ -113,37 +131,36 @@
                     message: message,
                     close: "Cancel",
                     action: "Create Hook",
-                    onAction: function() {
-                        vm.startCreateHook();
+                    onAction: async function() {
+                        await vm.startCreateHook();
                     }
                 }
             },
 
-            startCreateHook: function() {
-                let vm = this;
-                vm.dialog = undefined;
-                vm.loading = true;
+            /**
+             * Start the create build hook function
+             */
+            startCreateHook: async function() {
+                this.dialog = undefined;
+                this.loading = true;
 
-                createHook(vm.api, vm.site, function(hook) {
-                    vm.loading = false;
-                    if ( hook ) {
-                        vm.update();
-                    }
-                    else {
-                        vm.setupTitle = "Create Build Hook";
-                        vm.setupMessage = "ERROR: Could not create required build hook!";
-                    }
-                });
+                this.hook = await createHook(this.api);
+                    
+                if ( this.hook ) {
+                    await this.setup();
+                }
+                else {
+                    this.loading = false;
+                    this.setupTitle = "Create Build Hook";
+                    this.setupMessage = "ERROR: Could not create required build hook!";
+                }
             }
 
         },
 
-        mounted: function() {
-            let vm = this;
-            vm.update();
-            getLastActivityId(vm.api, function(lastActivityId) {
-                vm.lastActivityId = lastActivityId;
-            });
+        mounted: async function() {
+            await this.setup();
+            this.lastActivityId = await getLastActivityId(this.api);
         }
     };
 </script>
