@@ -11,27 +11,6 @@ async function getSite(api) {
     return data && data.site ? data.site : undefined;
 }
 
-/**
- * Get the extension's build hook for the site
- * @param {API} api Directus API
- * @returns {Object} Extension build hook
- */
-async function getHook(api, site, callback) {
-    const { data } = await api.get(`/${config.extension}/hook`);
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.hook ? data.hook : undefined;
-}
-
-/**
- * Create the extension's build hook for the site
- * @param {API} api Directus API
- * @returns {Object} Extension build hook
- */
-async function createHook(api, site, callback) {
-    const { data } = await api.post(`/${config.extension}/hook`);
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.hook ? data.hook : undefined;
-}
 
 /**
  * Get the ID of the last Activity Item (excluding authenticate)
@@ -44,4 +23,4 @@ async function getLastActivityId(api, callback) {
     return data && data.data && data.data.length > 0 ? data.data[0].id : 0
 }
 
-export { getSite, getHook, createHook, getLastActivityId };
+export { getSite, getLastActivityId };

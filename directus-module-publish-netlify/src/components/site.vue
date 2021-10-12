@@ -30,8 +30,8 @@
                 <v-button v-bind:href="site.url">
                     <v-icon name="launch"></v-icon>&nbsp;View
                 </v-button>
-                <v-button v-bind:href="site.admin_url">
-                    <v-icon name="settings"></v-icon>&nbsp;Settings
+                <v-button v-bind:href="site.admin_url" icon>
+                    <v-icon name="settings"></v-icon>
                 </v-button>
             </v-card-actions>
             
