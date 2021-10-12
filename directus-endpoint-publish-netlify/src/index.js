@@ -48,7 +48,7 @@ module.exports = function registerEndpoint(router, { services, env }) {
      * GET /site
      * Get the info for the configured Netlify Site
      */
-    router.get('/site', _checkAuth, async function(req, res) {
+    router.get('/site', _checkAuth, function(req, res) {
 
         // Check required Env Vars
         if ( !NETLIFY_TOKEN || NETLIFY_TOKEN === "" ) {
@@ -61,12 +61,34 @@ module.exports = function registerEndpoint(router, { services, env }) {
         }
 
         // Get Site info from Netlify
-        _netlify_get("/sites?name=" + NETLIFY_SITE, function(err, resp) {
+        _netlify_get(`/sites?name=${NETLIFY_SITE}`, function(err, resp) {
             let site = resp && resp.length === 1 ? resp[0] : undefined;
             let error = err ? err.toString() : !site ? 'The configured Netlify site could not be found' : undefined;
             res.send({ error: error, site: site });
         });
 
+    });
+
+
+    router.get('/hooks/:site', _checkAuth, function(req, res) {
+        let site_id = req.params.site;
+        _netlify_get(`/sites/${site_id}/build_hooks`, function(err, resp) {
+            let hooks = resp ? resp : [];
+            res.send({ error: err, hooks: hooks });
+        });
+    });
+
+
+    router.post('/hooks/:site/:branch', _checkAuth, function(req, res) {
+        let site_id = req.params.site;
+        let branch = req.params.branch;
+        let body = {
+            title: config.extension_build_hook,
+            branch: branch
+        };
+        _netlify_post(`/sites/${site_id}/build_hooks`, body, function(err, resp) {
+            res.send({ error: err, hook: resp });
+        })
     });
 
 
@@ -102,6 +124,10 @@ module.exports = function registerEndpoint(router, { services, env }) {
         _netlify_api("GET", path, undefined, callback);
     }
 
+    function _netlify_post(path, body, callback) {
+        _netlify_api("POST", path, body, callback);
+    }
+
     /**
      * Make a generic request to the Netlify API
      * @param {string} method HTTP Method
@@ -110,10 +136,19 @@ module.exports = function registerEndpoint(router, { services, env }) {
      * @param {Function} callback Callback function(err, results)
      */
     function _netlify_api(method, path, body, callback) {
+        console.log("===> API: [" + method + "] " + path);
+
+        let headers = {
+            Authorization: 'Bearer ' + NETLIFY_TOKEN
+        }
+        if ( body ) {
+            body = JSON.stringify(body);
+            headers['Content-Type'] = 'application/json';
+            headers['Content-Length'] = body.length
+        }
+
         const options = {
-            headers: {
-                'Authorization': 'Bearer ' + NETLIFY_TOKEN
-            },
+            headers: headers,
             method: method,
             hostname: 'api.netlify.com',
             path: '/api/v1/' + path,
@@ -142,6 +177,7 @@ module.exports = function registerEndpoint(router, { services, env }) {
                 catch (e) {
                     return callback(new Error("Netlify API Request Failed [" + e + "]"));
                 }
+                console.log(body);
                 return callback(null, body);
             });
 
@@ -152,6 +188,9 @@ module.exports = function registerEndpoint(router, { services, env }) {
             console.log("Could not make Netlify API Request [" + err + "]");
             return callback(err);
         });
+
+        // Add Body
+        if ( body ) req.write(body);
 
         req.end();
     }

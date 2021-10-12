@@ -11,5 +11,6 @@ module.exports = {
             "_neq": collection_name
         }
     },
+    "extension_build_hook": "Directus Build Hook",
     "extension_path_env_var": "DIRECTUS_EXTENSIONS_PATH"
 }
