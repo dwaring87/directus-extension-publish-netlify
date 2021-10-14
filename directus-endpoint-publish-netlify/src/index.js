@@ -178,21 +178,28 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      * Run the post deploy hook (update the site metadata with the latest activitiy id)
      */
     router.post('/hook', async function(req, res) {
-        const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
-
-        console.log("====> POST DEPLOY HOOK <====");
-        console.log(req.body);
-
         try {
             const site_id = await _netlify_get_site_id();
-            let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
-            let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
-            
-            directus_metadata.lastActivityId = await _getActivityId(activityService);
-            metadata.directus = directus_metadata;
-            await _netlify_put(`/sites/${site_id}/metadata`, metadata);
+            let updated = false;
 
-            return res.send({});
+            // Check deploy sent via hook
+            let build = req.body;
+            if ( build && build.site_id === site_id && build.state === 'ready' ) {
+                
+                // Get current metadata
+                let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
+                let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
+                
+                // Update activity in metadata
+                const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
+                directus_metadata.lastActivityId = await _getActivityId(activityService);
+                metadata.directus = directus_metadata;
+                await _netlify_put(`/sites/${site_id}/metadata`, metadata);
+
+                updated = true;
+            }
+
+            return res.send({ updated });
         }
         catch (error) {
             return res.send({ error: error.message });
