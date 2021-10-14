@@ -22,16 +22,15 @@ async function _getActivityId(activityService) {
 
 
 module.exports = async function registerEndpoint(router, { services, env }) {
+    const { ActivityService } = services;
 
     // Netlify API Environment Variables
     const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
     const NETLIFY_SITE = env.NETLIFY_SITE;
+    const DIRECTUS_PUBLIC_URL = env.PUBLIC_URL;
 
     // Cached Netlify Site ID (used by other API requests)
     let NETLIFY_SITE_ID = undefined;
-
-    // const { ActivityService } = services;
-    // const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
 
 
     //
@@ -53,6 +52,22 @@ module.exports = async function registerEndpoint(router, { services, env }) {
         try {
             const site = await _netlify_get_site();
             return res.send({ site });
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
+    });
+
+
+    /**
+     * GET /metadata
+     * Get the directus metadata for the configured Netlify site
+     */
+    router.get('/metadata', _checkAuth, async function(req, res) {
+        try {
+            const site_id = await _netlify_get_site_id();
+            const metadata = await _netlify_get(`/sites/${site_id}/metadata`);
+            return res.send({ metadata: metadata && metadata.directus ? metadata.directus : {} });
         }
         catch (error) {
             return res.send({ error: error.message });
@@ -93,6 +108,97 @@ module.exports = async function registerEndpoint(router, { services, env }) {
 
 
     /**
+     * GET /hook
+     * Check if the post deploy hook exists (set in the site metadata and created)
+     */
+    router.get('/hook', _checkAuth, async function(req, res) {
+        try {
+            const site_id = await _netlify_get_site_id();
+            let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
+            let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
+
+            // Post Deploy Hook not set in site metadata
+            if ( !directus_metadata || !directus_metadata.post_deploy_hook_id ) {
+                return res.send({ exists: false });
+            }
+
+            // Check if Post Deploy Hook exists and registered for the configured site
+            let post_deploy_hook_id = directus_metadata.post_deploy_hook_id;
+            let post_deploy_hook = await _netlify_get(`/hooks/${post_deploy_hook_id}`);
+            return res.send({ exists: post_deploy_hook && post_deploy_hook.site_id && post_deploy_hook.site_id === site_id });
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
+    });
+
+
+    /**
+     * PUT /hook
+     * Create a new Netlify post-deploy hook
+     */
+    router.put('/hook', _checkAuth, async function(req, res) {
+        try {
+            if ( !DIRECTUS_PUBLIC_URL || DIRECTUS_PUBLIC_URL === "" ) throw new Error("PUBLIC_URL environment variable not set");
+            const site_id = await _netlify_get_site_id();
+            
+            // Create Hook
+            let token = req.body ? req.body.token : undefined;
+            if ( !token ) throw new Error("Request did not include Directus API token");
+            let body = {
+                site_id: site_id,
+                type: "url",
+                event: "deploy_created",
+                data: {
+                    url: `${DIRECTUS_PUBLIC_URL}/${config.extension}/hook?access_token=${token}`
+                }
+            }
+            const hook = await _netlify_post(`/hooks?site_id=${site_id}`, body);
+            if ( !hook || !hook.id ) throw new Error("Could not create post deploy hook via Netlify API");
+
+            // Update Metadata
+            let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
+            let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
+            directus_metadata.post_deploy_hook_id = hook.id;
+            metadata.directus = directus_metadata;
+            await _netlify_put(`/sites/${site_id}/metadata`, metadata);
+
+            return res.send({ hook });
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
+    });
+
+
+    /**
+     * POST /hook
+     * Run the post deploy hook (update the site metadata with the latest activitiy id)
+     */
+    router.post('/hook', async function(req, res) {
+        const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
+
+        console.log("====> POST DEPLOY HOOK <====");
+        console.log(req.body);
+
+        try {
+            const site_id = await _netlify_get_site_id();
+            let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
+            let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
+            
+            directus_metadata.lastActivityId = await _getActivityId(activityService);
+            metadata.directus = directus_metadata;
+            await _netlify_put(`/sites/${site_id}/metadata`, metadata);
+
+            return res.send({});
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
+    })
+
+
+    /**
      * POST /lock
      * Lock the currently debployed branch of the Netlify site
      * (Disable auto publishing)
@@ -130,16 +236,16 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      * POST /publish/:deploy_id
      * Set the specified deploy as the currenly published deploy
      */
-         router.post('/publish/:deploy_id', _checkAuth, async function(req, res) {
-            try {
-                const site_id = await _netlify_get_site_id();
-                const deploy = await _netlify_post(`/sites/${site_id}/deploys/${req.params.deploy_id}/restore`);
-                return res.send({ deploy });
-            }
-            catch (error) {
-                return res.send({ error: error.message });
-            }
-        });
+    router.post('/publish/:deploy_id', _checkAuth, async function(req, res) {
+        try {
+            const site_id = await _netlify_get_site_id();
+            const deploy = await _netlify_post(`/sites/${site_id}/deploys/${req.params.deploy_id}/restore`);
+            return res.send({ deploy });
+        }
+        catch (error) {
+            return res.send({ error: error.message });
+        }
+    });
 
 
     //
@@ -213,6 +319,16 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      */
     async function _netlify_post(path, body) {
         return await _netlify_api("POST", path, body);
+    }
+
+    /**
+     * Make a PUT request to the Netlify API
+     * @param {String} path API Path
+     * @param {Object} body Post Request Body 
+     * @returns {Object} API Response
+     */
+     async function _netlify_put(path, body) {
+        return await _netlify_api("PUT", path, body);
     }
 
     /**
