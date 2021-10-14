@@ -2,47 +2,47 @@
     <div class="container">
         <h2>Deploys</h2>
         <v-table v-bind:headers="headers" v-bind:items="deploys"
-                v-bind:sort="{by: 'updated_at', desc: true }">
+                v-bind:sort="{by: 'created_at', desc: true }">
 
             <!-- Deploy ID -->
             <template #[`item.id`]="{ item }">
                 <span v-html="displayHash(item.id)"></span>
             </template>
 
-            <!-- Updated Date -->
-            <template #[`item.updated_at`]="{ item }">
-                <span v-html="displayDate(item.updated_at)"></span>
+            <!-- Created Date -->
+            <template #[`item.created_at`]="{ item }">
+                <span v-html="displayDate(item.created_at)"></span>
             </template>
 
             <!-- Deploy State / Published -->
             <template #[`item.state`]="{ item }">
-                <v-notice v-if="isBuilding(item)" icon="build" type="warning">
-                    Building...
-                </v-notice>
-                <v-chip v-else-if="isPublished(item)" class="success">
+                <v-chip v-if="deployIsPublished(item)" class="success">
                     <v-icon name="public"></v-icon>&nbsp;Published
+                    <span v-if="!autoPublishEnabled">&nbsp;<v-icon name="lock"></v-icon></span>
                 </v-chip>
-                <v-notice v-else-if="isReady(item)" type="success">
+                <v-notice v-else-if="deployIsReady(item)" type="success">
                     Ready
                 </v-notice>
-                <v-notice v-else-if="isError(item)" type="danger">
+                <v-notice v-else-if="deployIsError(item)" type="danger">
                     Error
                 </v-notice>
-                <v-notice v-else type="warning">
-                    {{ item.state }}
+                <v-notice v-else icon="build" type="warning">
+                    {{ item.state.charAt(0).toUpperCase() + item.state.slice(1) }}
                 </v-notice>
             </template>
 
             <!-- Actions -->
             <template #item-append="{ item }">
-                <v-progress-circular v-if="isBuilding(item)" indeterminate />
+                
+                <v-progress-circular v-if="!deployIsReady(item) && !deployIsError(item)" indeterminate />
+                
                 <v-menu v-else placement="left-start" show-arrow>
                     <template #activator="{ toggle }">
                         <v-icon name="more_horiz" clickable @click="toggle" />
                     </template>
                     <v-list>
 
-                        <v-list-item v-if="isReady(item)" v-bind:click="view(item)" clickable>
+                        <v-list-item v-if="deployIsReady(item)" v-on:click="view(item)" clickable>
                             <v-list-item-icon>
                                 <v-icon name="launch" outline />
                             </v-list-item-icon>
@@ -51,7 +51,7 @@
                             </v-list-item-content>
                         </v-list-item>
 
-                        <v-list-item v-if="isReady(item) && !isPublished(item)" v-bind:click="publish(item)" clickable>
+                        <v-list-item v-if="deployIsReady(item) && !deployIsPublished(item)" v-on:click="publish(item)" clickable>
                             <v-list-item-icon>
                                 <v-icon name="public" outline />
                             </v-list-item-icon>
@@ -60,12 +60,12 @@
                             </v-list-item-content>
                         </v-list-item>
 
-                        <v-list-item v-bind:click="log(item)" clickable>
+                        <v-list-item v-on:click="details(item)" clickable>
                             <v-list-item-icon>
-                                <v-icon name="article" outline />
+                                <v-icon name="info" outline />
                             </v-list-item-icon>
                             <v-list-item-content>
-                                Build Log
+                                Deploy Details
                             </v-list-item-content>
                         </v-list-item>
 
@@ -79,6 +79,8 @@
 
 
 <script>
+    import { publishDeploy } from '../api.js';
+
     export default {
         inject: ['api'],
 
@@ -89,6 +91,10 @@
             },
             deploys: {
                 type: Array,
+                required: true
+            },
+            publishedDeploy: {
+                type: Object,
                 required: true
             }
         },
@@ -102,8 +108,8 @@
                         sortable: false
                     },
                     {
-                        text: "Updated",
-                        value: "updated_at",
+                        text: "Created",
+                        value: "created_at",
                         width: 250
                     },
                     {
@@ -113,6 +119,19 @@
                     }
                 ]
             }
+        },
+
+        computed: {
+            
+            /**
+             * Get if auto-publishing is enabled
+             * enabled = published deploy is not locked
+             * disabled = published deploy is locked
+             */
+            autoPublishEnabled: function() {
+                return this.publishedDeploy && !this.publishedDeploy.locked;
+            }
+
         },
 
         methods: {
@@ -135,33 +154,56 @@
                 return `<span style='font-family: monospace'>${s}...${e}</span>`;
             },
 
-            isBuilding: function(deploy) {
-                return deploy.state === 'building';
-            },
 
-            isReady: function(deploy) {
+            /**
+             * Check if the deploy state is 'ready'
+             * @param {Object} deploy Deploy to check
+             */
+            deployIsReady: function(deploy) {
                 return deploy.state === 'ready';
             },
 
-            isError: function(deploy) {
+            /**
+             * Check if the deploy state is 'error'
+             * @param {Object} deploy Deploy to check
+             */
+            deployIsError: function(deploy) {
                 return deploy.state === 'error';
             },
 
-            isPublished: function(deploy) {
+            /**
+             * Check if the deploy is currently published
+             * @param {Object} deploy Deploy to check
+             */
+            deployIsPublished: function(deploy) {
                 return this.site.published_deploy && this.site.published_deploy.id === deploy.id;
             },
 
 
+            /**
+             * View the selected Deploy
+             * @param {Object} deploy Deploy to view
+             */
             view: function(deploy) {
-                console.log("view deploy");
+                window.open(deploy.deploy_url, "_blank");
             },
 
-            publish: function(deploy) {
-                console.log("publish deploy");
+            /**
+             * Publish the selected Deploy
+             * @param {Object} deploy Deploy to publish
+             */
+            publish: async function(deploy) {
+                deploy.state = "publishing";
+                await publishDeploy(this.api, deploy.id);
+                this.$emit('update');
             },
 
-            log: function(deploy) {
-                console.log("view build log of deploy");
+            /**
+             * View the build details of the selected Deploy
+             * @param {Object} deploy Deploy to view log for
+             */
+            details: function(deploy) {
+                window.open(`${deploy.admin_url}/deploys/${deploy.id}`, "_blank");
             }
 
         }

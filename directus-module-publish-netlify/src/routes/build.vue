@@ -20,14 +20,19 @@
         </Message>
 
         <!-- Site Card -->
-        <Site v-if="!loading && !setupMessage" v-on:update="update" 
+        <Site v-if="!loading && !setupMessage" 
+                v-on:update="update"
+                v-on:build="buildRequested = true"
                 v-bind:site="site"
-                v-bind:lastActivityId="lastActivityId" />
+                v-bind:publishedDeploy="publishedDeploy"
+                v-bind:isBuilding="isBuilding"
+                v-bind:updateAvailable="updateAvailable" />
 
         <!-- Deploys Table -->
         <Deploys v-if="!loading && !setupMessage" v-on:update="update"
                 v-bind:site="site"
-                v-bind:deploys="deploys" />
+                v-bind:deploys="deploys"
+                v-bind:publishedDeploy="publishedDeploy" />
         
     </private-view>
 </template>
@@ -37,7 +42,7 @@
     import Message from '../components/message.vue';
     import Site from '../components/site.vue';
     import Deploys from '../components/deploys.vue';
-    import { getSite, getDeploys, getLastActivityId } from '../settings.js';
+    import { getSite, getDeploys, getLastActivityId } from '../api.js';
 
     export default {
         inject: ['api'],
@@ -52,20 +57,57 @@
                 site: undefined,
                 deploys: undefined,
                 lastActivityId: undefined,
-                updateInterval: undefined
+                updateTimeout: undefined,
+                buildRequested: undefined
             }
+        },
+
+        computed: {
+
+            /**
+             * Get the currently published deploy for the site
+             */
+            publishedDeploy: function() {
+                return this.site ? this.site.published_deploy : undefined;
+            },
+
+            /**
+             * Check if there is a deploy that is currently being built
+             * building = deploy state is not ready or error
+             */
+            isBuilding: function() {
+                if ( this.deploys ) {
+                    for ( let i = 0; i < this.deploys.length; i++ ) {
+                        if ( ! ['ready', 'error'].includes(this.deploys[i].state) ) {
+                            this.buildRequested = false;
+                            return true;
+                        }
+                    }
+                }
+                return this.buildRequested;
+            },
+
+            updateAvailable: function() {
+                return false;
+            }
+
         },
 
         methods: {
 
             /**
              * Update the Netlify data
-             * - Attempt to get Site from Netlify
+             * - Attempt to get site from Netlify
+             * - Get the site deploys
+             * - Set the last Directus activity id
              */
             update: async function() {
                 console.log("---> UPDATING <---");
                 this.setupTitle = undefined;
                 this.setupMessage = undefined;
+                if ( this.updateTimeout ) {
+                    clearTimeout(this.updateTimeout);
+                }
 
                 // Get the Site
                 try {
@@ -86,13 +128,12 @@
                     return this.displayError("Could not get Netlify site deploys", error);
                 }
 
-                // Get the Directus last activity id
-                try {
-                    this.lastActivityId = await getLastActivityId(this.api);
-                }
-                catch (error) {
-                    return this.displayError("Could not get Directus activity", error);
-                }
+                // Set next update timeout
+                // Poll more frequently if there is a deploy build in progress
+                this.updateTimeout = setTimeout(
+                    this.update, 
+                    this.isBuilding ? 2500 : 15000
+                );
 
                 this.loading = false;
                 return;
@@ -111,17 +152,24 @@
 
         },
 
-        mounted: function() {
+        mounted: async function() {
             this.loading = true;
+            
+            // Update Netlify Data
             this.update();
-            if ( !this.updateInterval ) {
-                this.updateInterval = setInterval(this.update, 5000);
+
+            // Get Latest Directus Activity
+            try {
+                this.lastActivityId = await getLastActivityId(this.api);
+            }
+            catch (error) {
+                return this.displayError("Could not get Directus activity", error);
             }
         },
 
         beforeUnmount: function() {
-            if ( this.updateInterval ) {
-                clearInterval(this.updateInterval);
+            if ( this.updateTimeout ) {
+                clearTimeout(this.updateTimeout);
             }
         }
     };

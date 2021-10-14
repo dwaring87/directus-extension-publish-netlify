@@ -11,5 +11,6 @@ module.exports = {
             "_neq": collection_name
         }
     },
+    "deploy_history_count": 25,
     "extension_path_env_var": "DIRECTUS_EXTENSIONS_PATH"
 }

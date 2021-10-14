@@ -2,15 +2,15 @@
     <div>
 
         <!-- Site Card -->
-        <v-card class="site-card" v-if="lastActivityId">
+        <v-card class="site-card">
             
-            <div v-if="!siteIsBuilding && lastActivityId && siteUpdateAvailable" class="site-card-update site-card-update-available">
+            <div v-if="!isBuilding && updateAvailable" class="site-card-update site-card-update-available">
                 <p><v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available</p>
             </div>
-            <div v-if="!siteIsBuilding && lastActivityId && !siteUpdateAvailable" class="site-card-update site-card-update-none">
+            <div v-if="!isBuilding && !updateAvailable" class="site-card-update site-card-update-none">
                 <p><v-icon name="check_circle"></v-icon>&nbsp;&nbsp;Site Updated</p>
             </div>
-            <div v-if="siteIsBuilding" class="site-card-update site-card-update-building">
+            <div v-if="isBuilding" class="site-card-update site-card-update-building">
                 <p><v-icon name="build"></v-icon>&nbsp;&nbsp;Building<v-progress-circular indeterminate /></p>
             </div> 
 
@@ -20,7 +20,10 @@
             <v-card-text>
                 <p><strong>State:</strong> {{ site.state }}</p>
                 <p><strong>Last Updated:</strong> {{ displayDate(site.updated_at) }}</p>
-
+                <div style="display: flex; align-items: center; gap: 10px">
+                    <p><strong>Auto Publishing:</strong></p>
+                    <v-switch v-model="autoPublishEnabled" v-bind:disabled="autoPublishUpdating" label="" />
+                </div>
                 <br />
 
                 <template v-if="publishedDeploy">
@@ -36,7 +39,7 @@
             
             <!-- General Actions -->
             <v-card-actions>
-                <v-button class="warning" v-on:click="build" v-bind:disabled="siteIsBuilding">
+                <v-button class="warning" v-on:click="build" v-bind:disabled="isBuilding">
                     <v-icon name="build"></v-icon>&nbsp;Build
                 </v-button>
                 <v-button v-bind:href="site.url">
@@ -54,7 +57,7 @@
 
 <script>
     import config from '../../../config.js';
-    import { startBuild, getLastActivityId } from '../settings.js';
+    import { startBuild, lockDeploy, unlockDeploy } from '../api.js';
 
     export default {
         inject: ['api'],
@@ -64,39 +67,49 @@
                 type: Object,
                 required: true
             },
-            lastActivityId: {
-                type: Number,
+            publishedDeploy: {
+                type: Object,
+                required: true
+            },
+            isBuilding: {
+                type: Boolean,
+                required: true
+            },
+            updateAvailable: {
+                type: Boolean,
                 required: true
             }
         },
 
         data: function() {
             return {
-                building: false
+                building: false,
+                autoPublishUpdating: false
             }
         },
 
         computed: {
 
             /**
-             * Determine if the site has a data update
+             * Get if auto-publishing is enabled
+             * enabled = published deploy is not locked
+             * disabled = published deploy is locked
              */
-            siteUpdateAvailable: function() {
-                return false;
-            },
-
-            /**
-             * Determine if the site is currently building
-             */
-            siteIsBuilding: function() {
-                return this.building;
-            },
-
-            /**
-             * Get the currently published deploy for the site
-             */
-            publishedDeploy: function() {
-                return this.site ? this.site.published_deploy : undefined;
+            autoPublishEnabled: {
+                get: function() {
+                    return this.publishedDeploy && !this.publishedDeploy.locked;
+                },
+                set: async function() {
+                    this.autoPublishUpdating = true;
+                    if ( this.autoPublishEnabled ) {
+                        await lockDeploy(this.api);
+                    }
+                    else {
+                        await unlockDeploy(this.api);
+                    }
+                    this.$emit('update');
+                    this.autoPublishUpdating = false;
+                }
             }
 
         },
@@ -124,8 +137,9 @@
             /**
              * Start the build process for the site
              */
-            build: function() {
-                startBuild(this.api);
+            build: async function() {
+                this.$emit('build');
+                await startBuild(this.api);
                 this.$emit('update');
             }
             

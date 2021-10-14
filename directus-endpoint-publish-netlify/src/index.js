@@ -23,8 +23,12 @@ async function _getActivityId(activityService) {
 
 module.exports = async function registerEndpoint(router, { services, env }) {
 
+    // Netlify API Environment Variables
     const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
     const NETLIFY_SITE = env.NETLIFY_SITE;
+
+    // Cached Netlify Site ID (used by other API requests)
+    let NETLIFY_SITE_ID = undefined;
 
     // const { ActivityService } = services;
     // const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
@@ -62,8 +66,8 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      */
     router.get('/deploys', _checkAuth, async function(req, res) {
         try {
-            const site = await _netlify_get_site();
-            const deploys = await _netlify_get(`/sites/${site.site_id}/deploys`);
+            const site_id = await _netlify_get_site_id();
+            const deploys = await _netlify_get(`/sites/${site_id}/deploys?per_page=${config.deploy_history_count}`);
             return res.send({ deploys });
         }
         catch (error) {
@@ -78,14 +82,64 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      */
     router.post('/builds', _checkAuth, async function(req, res) {
         try {
-            const site = await _netlify_get_site();
-            const build = await _netlify_post(`/sites/${site.site_id}/builds`);
+            const site_id = await _netlify_get_site_id();
+            const build = await _netlify_post(`/sites/${site_id}/builds`);
             return res.send({ build });
         }
         catch (error) {
             return res.send({ error: error.message });
         }
     });
+
+
+    /**
+     * POST /lock
+     * Lock the currently debployed branch of the Netlify site
+     * (Disable auto publishing)
+     */
+    router.post('/lock', _checkAuth, async function(req, res) {
+        try {
+            const site = await _netlify_get_site();
+            const deploy = await _netlify_post(`/deploys/${site.published_deploy.id}/lock`);
+            return res.send({ success: deploy && deploy.locked });
+        }
+        catch(error) {
+            return res.send({ error: error.message });
+        }
+    });
+
+
+    /**
+     * POST /unlock
+     * Unlock the currently deployed branch of the Netlify site
+     * (Enable auto publishing)
+     */
+    router.post('/unlock', _checkAuth, async function(req, res) {
+        try {
+            const site = await _netlify_get_site();
+            const deploy = await _netlify_post(`/deploys/${site.published_deploy.id}/unlock`);
+            return res.send({ success: deploy && !deploy.locked });
+        }
+        catch(error) {
+            return res.send({ error: error.message });
+        }
+    });
+
+
+    /**
+     * POST /publish/:deploy_id
+     * Set the specified deploy as the currenly published deploy
+     */
+         router.post('/publish/:deploy_id', _checkAuth, async function(req, res) {
+            try {
+                const site_id = await _netlify_get_site_id();
+                const deploy = await _netlify_post(`/sites/${site_id}/deploys/${req.params.deploy_id}/restore`);
+                return res.send({ deploy });
+            }
+            catch (error) {
+                return res.send({ error: error.message });
+            }
+        });
 
 
     //
@@ -109,6 +163,18 @@ module.exports = async function registerEndpoint(router, { services, env }) {
     //
     // NETLIFY API FUNCTIONS
     //
+
+    /**
+     * Get the Netlify Site ID (cached, if available)
+     * @returns {String}
+     */
+    async function _netlify_get_site_id() {
+        if ( !NETLIFY_SITE_ID ) {
+            let site = await _netlify_get_site();
+            NETLIFY_SITE_ID = site ? site.site_id : undefined;
+        }
+        return NETLIFY_SITE_ID;
+    }
 
     /**
      * Get the configured Netlify site

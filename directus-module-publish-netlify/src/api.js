@@ -34,6 +34,40 @@ async function startBuild(api) {
 }
 
 /**
+ * Lock the currently published deploy
+ * @param {API} api Directus API
+ * @returns {Boolean} Lock success
+ */
+async function lockDeploy(api) {
+    const { data } = await api.post(`${config.extension}/lock`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.success ? data.success : false;
+}
+
+/**
+ * Unlock the currently published deploy
+ * @param {API} api Directus API
+ * @returns {Boolean} Unlock success
+ */
+async function unlockDeploy(api) {
+    const { data } = await api.post(`${config.extension}/unlock`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.success ? data.success : false;
+}
+
+/**
+ * Set the specified deploy as the currently published deploy
+ * @param {API} api Directus API
+ * @param {String} deploy_id ID of deploy to publish
+ * @returns 
+ */
+async function publishDeploy(api, deploy_id) {
+    const { data } = await api.post(`${config.extension}/publish/${deploy_id}`);
+    if ( data && data.error ) throw new Error(data.error);
+    return data && data.deploy ? data.deploy : undefined;
+}
+
+/**
  * Get the ID of the last Activity Item (excluding authenticate)
  * @param {API} api Directus API
  * @returns {integer} ID of most recent activity
@@ -44,4 +78,4 @@ async function getLastActivityId(api) {
     return data && data.data && data.data.length > 0 ? data.data[0].id : 0
 }
 
-export { getSite, getDeploys, startBuild, getLastActivityId };
+export { getSite, getDeploys, startBuild, lockDeploy, unlockDeploy, publishDeploy, getLastActivityId };
