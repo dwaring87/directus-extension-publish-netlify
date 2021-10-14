@@ -204,7 +204,7 @@ module.exports = async function registerEndpoint(router, { services, env }) {
         catch (error) {
             return res.send({ error: error.message });
         }
-    })
+    });
 
 
     /**
@@ -349,8 +349,6 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      */
     async function _netlify_api(method, path, body) {
         return new Promise(function(resolve, reject) {
-            console.log("===> API: [" + method + "] " + path);
-
             let headers = {
                 Authorization: 'Bearer ' + NETLIFY_TOKEN
             }
