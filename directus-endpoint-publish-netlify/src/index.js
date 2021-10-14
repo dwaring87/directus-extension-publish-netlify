@@ -145,12 +145,14 @@ module.exports = async function registerEndpoint(router, { services, env }) {
             // Create Hook
             let token = req.body ? req.body.token : undefined;
             if ( !token ) throw new Error("Request did not include Directus API token");
+            let hook_url = `${DIRECTUS_PUBLIC_URL}/${config.extension}/hook?access_token=${token}`;
+            hook_url = hook_url.replace(/([^:])(\/\/+)/g, '$1/');
             let body = {
                 site_id: site_id,
                 type: "url",
                 event: "deploy_created",
                 data: {
-                    url: `${DIRECTUS_PUBLIC_URL}/${config.extension}/hook?access_token=${token}`
+                    url: hook_url
                 }
             }
             const hook = await _netlify_post(`/hooks?site_id=${site_id}`, body);
