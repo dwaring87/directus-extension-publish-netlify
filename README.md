@@ -56,6 +56,10 @@ There are two environment variables that need to be set before the extension can
 
 The first time you load the module, it will prompt you to create a Netlify post-deploy build hook.  This is a webhook registered with Netlify that will be triggered after a successful deploy.  It will call an endpoint of this extension (`POST` `/dwaring87-publish-netlify/hook`) that is used to keep track of the Directus revision version when the build is generated.  This is used for the site update status and displaying when data in Directus has been added/removed/updated after the latest Netlify deploy.
 
+## Enable
+
+The custom module will need to be first enabled in the Directus app's settings.  Go to the **Settings** module, **Project Settings** page, and enable the *Publish, /dwaring87-publish-netlify* module in the **Modules** section.
+
 ### Build
 
 To build a site, go to the module's Build Site page.  This will display basic information about the configured Netlify site, including information on its published deploy. To start a build, just click the Build button.  This will trigger a build on Netlify and its status will be monitored within Directus.
