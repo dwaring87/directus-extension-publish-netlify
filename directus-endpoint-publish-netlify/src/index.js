@@ -270,7 +270,7 @@ module.exports = async function registerEndpoint(router, { services, env }) {
             next();
         }
         else {
-            res.send({ error: "You must be logged in with admin privileges" });
+            res.status(401).send({ error: "You must be logged in with admin privileges" });
         }
     }
 

@@ -298,7 +298,9 @@
             await this.update();
 
             // Check Post Deploy Hook
-            await this.checkHook();
+            if ( this.site ) {
+                await this.checkHook();
+            }
 
             // Get Latest Directus Activity
             try {

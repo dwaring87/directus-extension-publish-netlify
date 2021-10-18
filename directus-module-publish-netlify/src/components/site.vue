@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="site-card-container">
 
         <!-- Site Card -->
         <v-card class="site-card">
@@ -148,6 +148,9 @@
 </script>
 
 <style scoped>
+    .site-card-container {
+        padding: 0 15px;
+    }
     .site-card {
         margin: 25px auto;
         box-shadow: 0 2px 3px 2px rgba(0,0,0,0.1);
