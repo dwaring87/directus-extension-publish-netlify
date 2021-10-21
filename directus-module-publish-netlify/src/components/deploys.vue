@@ -185,7 +185,7 @@
              * @param {Object} deploy Deploy to view
              */
             view: function(deploy) {
-                window.open(deploy.deploy_url, "_blank");
+                window.open(deploy.links.permalink, "_blank");
             },
 
             /**
