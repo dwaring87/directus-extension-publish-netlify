@@ -1,14 +1,13 @@
 const extension_name = "dwaring87-publish-netlify";
-const collection_name = "dwaring87_publish_netlify";
 
 module.exports = {
     "extension": extension_name,
     "activityFilter": {
         "action": {
-            "_neq": "authenticate"
+            "_neq": "login"
         },
-        "collection":  {
-            "_neq": collection_name
+        "collection": {
+            "_nin": ["directus_dashboards", "directus_folders", "directus_migrations", "directus_panels", "directus_sessions", "directus_settings", "directus_webhooks"]
         }
     },
     "deploy_history_count": 25,
