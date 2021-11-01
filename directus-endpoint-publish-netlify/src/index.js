@@ -184,24 +184,37 @@ module.exports = async function registerEndpoint(router, { services, env }) {
 
             // Check deploy sent via hook
             let build = req.body;
+            console.log("==> NETLIFY POST-DEPLOY HOOK:");
+            console.log("Build: " + JSON.stringify(build));
+            console.log("Build Site ID: " + build.site_id);
+            console.log("Build State: " + build.state);
+            console.log("Local Site ID: " + site_id);
             if ( build && build.site_id === site_id && build.state === 'ready' ) {
                 
                 // Get current metadata
                 let metadata = await _netlify_get(`/sites/${site_id}/metadata`);
                 let directus_metadata = metadata && metadata.directus ? metadata.directus : {};
+
+                console.log("Site Metadata: " + JSON.stringify(metadata));
                 
                 // Update activity in metadata
                 const activityService = new ActivityService({ schema: req.schema, accountability: req.accountability });
                 directus_metadata.lastActivityId = await _getActivityId(activityService);
                 metadata.directus = directus_metadata;
+
+                console.log("New Activity ID: " + directus_metadata.lastActivityId);
+                console.log("New Metadata: " + JSON.stringify(metadata));
+
                 await _netlify_put(`/sites/${site_id}/metadata`, metadata);
 
                 updated = true;
             }
 
+            console.log("UPDATED: " + updated);
             return res.send({ updated });
         }
         catch (error) {
+            console.log("ERROR: " + error.message);
             return res.send({ error: error.message });
         }
     });
