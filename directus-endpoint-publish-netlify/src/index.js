@@ -17,7 +17,7 @@ async function _getActivityId(activityService) {
     console.log(config.activityFilter);
     let activity_rows = await activityService.readByQuery({ 
         filter: config.activityFilter, 
-        sort: [{ column: "timestamp", order: "desc" }], 
+        sort: ["-timestamp"],
         limit: 1 
     });
     console.log(activity_rows);
