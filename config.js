@@ -4,7 +4,7 @@ module.exports = {
     "extension": extension_name,
     "activityFilter": {
         "action": {
-            "_neq": "login"
+            "_nin": ["login", "comment"]
         },
         "collection": {
             "_nin": ["directus_dashboards", "directus_folders", "directus_migrations", "directus_panels", "directus_sessions", "directus_settings", "directus_webhooks"]
