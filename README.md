@@ -1,3 +1,4 @@
+
 # Directus Extension: dwaring87-publish-netlify
 
 A Directus v9 Extension (including a frontend app module and backend API endpoints) for managing builds and deploys of a Netlify site.
@@ -45,6 +46,50 @@ To manually install the extensions into Directus, copy:
 - `./directus-endpoint-publish-netlify/src/index.js` --> `/directus/extensions/endpoints/dwaring87-publish-netlify/index.js`
 - `./directus-module-publish-netlify/dist/index.js` --> `/directus/extensions/modules/dwaring87-publish-netlify/index.js`
 
+## Configuration
+
+Some advanced configuration options can be set in the `config.js` file before the extension is built and deployed:
+
+```js
+module.exports  = {
+    "extension":  "dwaring87-publish-netlify",
+    "activityFilter": {
+        "action": {
+            "_nin": ["login", "comment"]
+        },
+        "collection": {
+            "_nin": ["directus_dashboards", "directus_folders", "directus_migrations", "directus_panels", "directus_permissions", "directus_sessions", "directus_settings", "directus_webhooks"]
+        }
+    },
+    "additional_role_ids": ["bdc0ea73-1b18-4a2a-a2dd-dc5c6d139810"],
+    "deploy_history_count":  25,
+    "extension_path_env_var":  "DIRECTUS_EXTENSIONS_PATH"
+}
+```
+
+### Activity Filter
+
+The `activityFilter` object is passed to the `GET` `/activity` Directus API endpoint when determining the ID of the last activity item to compare to the stored activity ID associated with the most recent Netlify build.  When the ID of the last activity item is greater than the stored activity ID of the most recent Netlify build, the module will indicate that updates are available (ie, data in the database has been updated since the last build).
+
+By default, the module will exclude any login and comment activity, as well as any changes to most of the internal Directus tables.  You can modify the `activityFilter` to include additional tables to exclude when checking if an update is suggested.
+
+### Enabled Roles
+
+By default, the module is available in the Directus app to any user associated with a Directus role that has **Admin Access** enabled.  If you want to enable the module for non-admin roles:
+
+- Add the **Role ID** to the `additional_role_ids` array
+    - You need to add the _ID_ of the role and _not_ the name.  You can get the ID from the `directus_roles` table or from the URL of the Role Settings page (ie, `/admin/settings/roles/{id}`).
+- Ensure the role has **full read access** to the **Directus Activity** table.
+	- The module checks the activity table to see if there has been a data change since the most recent Netlify build
+	- By default, roles with _App Access_ have limited read access to the activity table (filtered to include only activity of their own account)
+	- Without full read access, the module will not indicate that updates are available if changes were made by another user
+- Rebuild and Redeploy the extension
+- Restart Directus
+
+### Deploy History
+
+By default, the module will display the last 25 Netlify builds in the Deploys table.  You can modify the `deploy_history_count` property to change the max number of deploys displayed.
+
 ## Usage
 
 ### Setup
@@ -56,7 +101,7 @@ There are two environment variables that need to be set before the extension can
 
 The first time you load the module, it will prompt you to create a Netlify post-deploy build hook.  This is a webhook registered with Netlify that will be triggered after a successful deploy.  It will call an endpoint of this extension (`POST` `/dwaring87-publish-netlify/hook`) that is used to keep track of the Directus revision version when the build is generated.  This is used for the site update status and displaying when data in Directus has been added/removed/updated after the latest Netlify deploy.
 
-## Enable
+### Enable
 
 The custom module will need to be first enabled in the Directus app's settings.  Go to the **Settings** module, **Project Settings** page, and enable the *Publish, /dwaring87-publish-netlify* module in the **Modules** section.
 
