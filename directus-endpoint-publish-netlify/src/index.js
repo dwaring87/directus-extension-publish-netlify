@@ -266,7 +266,7 @@ module.exports = async function registerEndpoint(router, { services, env }) {
      * Return with an error if not an admin
      */
     function _checkAuth(req, res, next) {
-        if ( req.accountability.admin ) {
+        if ( req.accountability.admin || (req.accountability.app && config.additional_role_ids && config.additional_role_ids.includes(req.accountability.role)) ) {
             next();
         }
         else {

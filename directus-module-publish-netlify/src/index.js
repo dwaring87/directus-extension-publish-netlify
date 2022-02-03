@@ -16,6 +16,7 @@ export default {
         }
     ],
     preRegisterCheck: function(user) {
-        return user.role.admin_access === true;
+        return user.role.admin_access === true || 
+            (user.role.app_access && config.additional_role_ids && config.additional_role_ids.includes(user.role.id));
     }
 };
