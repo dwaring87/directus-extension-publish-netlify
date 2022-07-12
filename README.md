@@ -99,8 +99,6 @@ There are two environment variables that need to be set before the extension can
 - **`NETLIFY_SITE`:** the name of the Netlify site (the part before `.netlify.app`) to manage with the extension
 - **`NETLIFY_TOKEN`:** a Netlify personal access token used to interact with the Netlify API (User Settings -> Applications -> Personal access tokens -> New access token)
 
-The first time you load the module, it will prompt you to create a Netlify post-deploy build hook.  This is a webhook registered with Netlify that will be triggered after a successful deploy.  It will call an endpoint of this extension (`POST` `/dwaring87-publish-netlify/hook`) that is used to keep track of the Directus revision version when the build is generated.  This is used for the site update status and displaying when data in Directus has been added/removed/updated after the latest Netlify deploy.
-
 ### Enable
 
 The custom module will need to be first enabled in the Directus app's settings.  Go to the **Settings** module, **Project Settings** page, and enable the *Publish, /dwaring87-publish-netlify* module in the **Modules** section.

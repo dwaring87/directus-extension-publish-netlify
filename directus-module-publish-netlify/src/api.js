@@ -79,55 +79,6 @@ async function publishDeploy(api, deploy_id) {
 }
 
 /**
- * Check if the post deploy hook exists and is registered for the site
- * and is set in the site metadata
- * @param {API} api Directus API
- * @returns {Boolean} true if the post deploy hook is exists and is registered
- */
-async function postDeployHookExists(api) {
-    const { data } = await api.get(`${config.extension}/hook`);
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.exists ? data.exists : false;
-}
-
-/**
- * Create the post deploy hook
- * @param {API} api Directus API
- * @param {String} token Directus API Token
- * @returns {Object} New post deploy hook
- */
-async function createPostDeployHook(api, token) {
-    const { data } = await api.put(`${config.extension}/hook`, { token });
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.hook ? data.hook : undefined;
-
-}
-
-/**
- * Get the current user
- * @param {API} api Directus API
- * @returns {String} Current User
- */
-async function getUser(api) {
-    const { data } = await api.get('/users/me');
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.data ? data.data : {};
-}
-
-/**
- * Update the token of the specified User
- * @param {API} api Directus API
- * @param {String} user_id User ID
- * @param {String} token New user token
- * @returns {Boolean} true if the token has been updated
- */
-async function setUserToken(api, user_id, token) {
-    const { data } = await api.patch(`/users/${user_id}`, { token });
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.data && data.data.token && data.data.token === token ? true : false;
-}
-
-/**
  * Get the ID of the last Activity Item (excluding authenticate)
  * @param {API} api Directus API
  * @returns {integer} ID of most recent activity
@@ -139,6 +90,5 @@ async function getLastActivityId(api) {
 }
 
 export { getSite, getSiteMetadata, getDeploys, 
-    startBuild, lockDeploy, unlockDeploy, publishDeploy, 
-    postDeployHookExists, createPostDeployHook,
-    getUser, setUserToken, getLastActivityId };
+    startBuild, lockDeploy, unlockDeploy, publishDeploy,
+    getLastActivityId };
