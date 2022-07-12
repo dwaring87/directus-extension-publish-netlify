@@ -68,15 +68,15 @@ async function publishDeploy(api, deploy_id) {
 }
 
 /**
- * Get the ID of the last Activity Item (excluding authenticate)
+ * Get info on the latest Activity Item from the Directus DB
  * @param {API} api Directus API
- * @returns {integer} ID of most recent activity
+ * @returns {Object} Most recent activity
  */
-async function getLastActivityId(api) {
+async function getLatestDirectusActivity(api) {
     let filter = JSON.stringify(config.activityFilter);
-    const { data } = await api.get(`/activity?filter=${filter}&sort=-timestamp&limit=1`)
-    return data && data.data && data.data.length > 0 ? data.data[0].id : 0
+    const { data } = await api.get(`/activity?filter=${filter}&sort=-timestamp&limit=1&fields=*.*`)
+    return data && data.data && data.data.length > 0 ? data.data[0] : undefined;
 }
 
-export { getSite, getDeploys, getLastActivityId,
+export { getSite, getDeploys, getLatestDirectusActivity,
     startBuild, lockDeploy, unlockDeploy, publishDeploy };

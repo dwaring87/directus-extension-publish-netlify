@@ -25,8 +25,11 @@
                 v-on:build="buildRequested = true"
                 v-bind:site="site"
                 v-bind:publishedDeploy="publishedDeploy"
+                v-bind:latestDeploy="latestDeploy"
+                v-bind:latestActivity="latestActivity"
                 v-bind:isBuilding="isBuilding"
-                v-bind:updateAvailable="updateAvailable" />
+                v-bind:updateAvailable="updateAvailable"
+                v-bind:isPublishedLatest="isPublishedLatest" />
 
         <!-- Deploys Table -->
         <Deploys v-if="!loading && !setupMessage" v-on:update="update"
@@ -44,25 +47,11 @@
 </template>
 
 <script>
-    import config from '../../../config.js';
     import Message from '../components/message.vue';
     import Site from '../components/site.vue';
     import Deploys from '../components/deploys.vue';
     import Dialog from '../components/dialog.vue';
-    import { getSite, getDeploys, getLastActivityId } from '../api.js';
-
-
-    /**
-     * Create a random uuid-like token
-     * @returns {String} token
-     */
-    function _createToken() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
-
+    import { getSite, getDeploys, getLatestDirectusActivity } from '../api.js';
 
     export default {
         inject: ['api'],
@@ -76,7 +65,7 @@
                 setupMessage: undefined,
                 site: undefined,
                 deploys: undefined,
-                lastActivityId: undefined,
+                latestActivity: undefined,
                 updateTimeout: undefined,
                 buildRequested: undefined,
                 dialog: undefined
@@ -90,6 +79,28 @@
              */
             publishedDeploy: function() {
                 return this.site ? this.site.published_deploy : undefined;
+            },
+
+            /**
+             * Get the latest (most recent) 'ready' deploy for the site
+             */
+            latestDeploy: function() {
+                if ( this.deploys && this.deploys.length > 0 ) {
+                    for ( let i = 0; i < this.deploys.length; i++ ) {
+                        if ( this.deploys[i].state === 'ready' ) {
+                            return this.deploys[i];
+                        }
+                    }
+                }
+            },
+
+            /**
+             * Check if the published deploy is the latest deploy
+             */
+            isPublishedLatest: function() {
+                return this.publishedDeploy && this.latestDeploy ?
+                       this.publishedDeploy.id === this.latestDeploy.id :
+                       false;
             },
 
             /**
@@ -110,10 +121,14 @@
 
             /**
              * Check if there is a data update available
+             * updateAvailable = when the timestamp of the latest Directus activity is 
+             *      greater than the timestamp of the published Netlify deploy
              */
             updateAvailable: function() {
-                // TODO: Update the logic of this check
-                return true;
+                return this.latestActivity && this.latestActivity.timestamp && 
+                       this.publishedDeploy && this.publishedDeploy.created_at ?
+                       new Date(this.latestActivity.timestamp) > new Date(this.publishedDeploy.created_at) :
+                       true
             }
 
         },
@@ -122,9 +137,8 @@
 
             /**
              * Update the Netlify data
-             * - Attempt to get site from Netlify
+             * - Get site from Netlify
              * - Get the site deploys
-             * - Set the last Directus activity id
              */
             update: async function() {
                 if ( this.updateTimeout ) {
@@ -148,6 +162,14 @@
                 }
                 catch (error) {
                     return this.displayError("Could not get Netlify site deploys", error);
+                }
+
+                // Get Latest Directus Activity
+                try {
+                    this.latestActivity = await getLatestDirectusActivity(this.api);
+                }
+                catch (error) {
+                    return this.displayError("Could not get Directus activity", error);
                 }
 
                 // Set next update timeout
@@ -179,17 +201,7 @@
 
         mounted: async function() {
             this.loading = true;
-            
-            // Update Netlify Data
             await this.update();
-
-            // Get Latest Directus Activity
-            try {
-                this.lastActivityId = await getLastActivityId(this.api);
-            }
-            catch (error) {
-                return this.displayError("Could not get Directus activity", error);
-            }
         },
 
         beforeUnmount: function() {
