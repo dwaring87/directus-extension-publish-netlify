@@ -60,22 +60,6 @@ module.exports = async function registerEndpoint(router, { services, env }) {
 
 
     /**
-     * GET /metadata
-     * Get the directus metadata for the configured Netlify site
-     */
-    router.get('/metadata', _checkAuth, async function(req, res) {
-        try {
-            const site_id = await _netlify_get_site_id();
-            const metadata = await _netlify_get(`/sites/${site_id}/metadata`);
-            return res.send({ metadata: metadata && metadata.directus ? metadata.directus : {} });
-        }
-        catch (error) {
-            return res.send({ error: error.message });
-        }
-    });
-
-
-    /**
      * GET /deploys
      * Get the deploys for the configured Netlify site
      */

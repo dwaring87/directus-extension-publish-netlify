@@ -49,7 +49,7 @@
     import Site from '../components/site.vue';
     import Deploys from '../components/deploys.vue';
     import Dialog from '../components/dialog.vue';
-    import { getSite, getSiteMetadata, getDeploys, getLastActivityId } from '../api.js';
+    import { getSite, getDeploys, getLastActivityId } from '../api.js';
 
 
     /**
@@ -75,7 +75,6 @@
                 setupTitle: undefined,
                 setupMessage: undefined,
                 site: undefined,
-                metadata: undefined,
                 deploys: undefined,
                 lastActivityId: undefined,
                 updateTimeout: undefined,
@@ -111,11 +110,10 @@
 
             /**
              * Check if there is a data update available
-             * true = the directus last activity id is greater than the 
-             *          last activity id saved in the Netlify site metadata
              */
             updateAvailable: function() {
-                return !this.metadata || !this.metadata.lastActivityId || this.lastActivityId > this.metadata.lastActivityId;
+                // TODO: Update the logic of this check
+                return true;
             }
 
         },
@@ -142,17 +140,6 @@
                 }
                 catch (error) {
                     return this.displayError("Could not get Netlify site", error);
-                }
-
-                // Get the Site Metadata
-                try {
-                    this.metadata = await getSiteMetadata(this.api);
-                    if ( !this.metadata ) {
-                        throw new Error("The site metadata could not be retrieved via the Netlify API");
-                    }
-                }
-                catch (error) {
-                    return this.displayError("Could not get Netlify site metadata", error);
                 }
 
                 // Get the Deploys

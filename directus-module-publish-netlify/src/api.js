@@ -12,17 +12,6 @@ async function getSite(api) {
 }
 
 /**
- * Get the directus metadata for the configured Netlify site
- * @param {API} api Directus API
- * @returns {Object} Site metadata for Directus
- */
-async function getSiteMetadata(api) {
-    const { data } = await api.get(`/${config.extension}/metadata`);
-    if ( data && data.error ) throw new Error(data.error);
-    return data && data.metadata ? data.metadata : undefined;
-}
-
-/**
  * Get the deploys for the configured Netlify site
  * @param {API} api Directus API
  * @returns {Object[]} Site deploys
@@ -89,6 +78,5 @@ async function getLastActivityId(api) {
     return data && data.data && data.data.length > 0 ? data.data[0].id : 0
 }
 
-export { getSite, getSiteMetadata, getDeploys, 
-    startBuild, lockDeploy, unlockDeploy, publishDeploy,
-    getLastActivityId };
+export { getSite, getDeploys, getLastActivityId,
+    startBuild, lockDeploy, unlockDeploy, publishDeploy };
