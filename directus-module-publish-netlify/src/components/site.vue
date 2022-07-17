@@ -4,8 +4,14 @@
         <!-- Site Card -->
         <v-card class="site-card">
             
+            <!-- Site Status Info -->
             <div v-if="!isBuilding && updateAvailable" class="site-card-update site-card-update-available">
-                <p><v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available</p>
+                <p>
+                    <v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available
+                    <template v-if="!isPublishedLatest">
+                        <br /><v-icon name="public"></v-icon>&nbsp;&nbsp;Published Deploy is not the latest Deploy
+                    </template>
+                </p>
             </div>
             <div v-if="!isBuilding && !updateAvailable" class="site-card-update site-card-update-none">
                 <p><v-icon name="check_circle"></v-icon>&nbsp;&nbsp;Site Updated</p>
@@ -18,6 +24,8 @@
             <v-card-subtitle>{{ site.url }}</v-card-subtitle>
         
             <v-card-text>
+
+                <!-- Netlify Status -->
                 <p><strong>State:</strong> {{ site.state }}</p>
                 <p><strong>Last Updated:</strong> {{ displayDate(site.updated_at) }}</p>
                 <div style="display: flex; align-items: center; gap: 10px">
@@ -26,20 +34,67 @@
                 </div>
                 <br />
 
-                <template v-if="publishedDeploy">
-                    <p><strong>Published Deploy:</strong></p>
-                    <ul class="published_deploy_details">
-                        <li><strong>ID:</strong>  <span v-html="displayHash(publishedDeploy.id)"></span></li>
-                        <li><strong>Published:</strong> {{ displayDate(publishedDeploy.published_at) }}</li>
-                        <li><strong>Branch:</strong> {{ publishedDeploy.branch }}</li>
-                    </ul>
-                </template>
+                <!-- Details of Published Deploy -->
+                <div class="site-card-details" v-if="publishedDeploy">
+                    <div class="site-card-details-toggle" @click="display_published_deploy_details = !display_published_deploy_details">
+                        <p>
+                            <strong>Published Deploy:</strong>
+                            <template v-if="!display_published_deploy_details">&nbsp;{{ displayDate(publishedDeploy.created_at) }}</template>
+                        </p>
+                        <v-icon class="site-card-details-toggle-icon" :name="display_published_deploy_details ? 'expand_less' : 'expand_more'"></v-icon>
+                    </div>
+                    <transition-expand>
+                        <ul v-if="display_published_deploy_details" class="published_deploy_details">
+                            <li><strong>ID:</strong>  <span v-html="displayHash(publishedDeploy.id)"></span></li>
+                            <li><strong>Created:</strong> {{ displayDate(publishedDeploy.created_at) }}</li>
+                            <li><strong>Published:</strong> {{ displayDate(publishedDeploy.published_at) }}</li>
+                            <li><strong>Branch:</strong> {{ publishedDeploy.branch }}</li>
+                        </ul>
+                    </transition-expand>
+                </div>
                 <v-notice v-else type="warning" center>Site not yet published</v-notice>
+
+                <!-- Details of Latest DB Activity -->
+                <div class="site-card-details" v-if="latestActivity">
+                    <div class="site-card-details-toggle" @click="display_latest_activity_details = !display_latest_activity_details">
+                        <p>
+                            <strong>Last Database Update:</strong>
+                            <template v-if="!display_latest_activity_details">&nbsp;{{ displayDate(latestActivity.timestamp) }}</template>
+                        </p>
+                        <v-icon class="site-card-details-toggle-icon" :name="display_latest_activity_details ? 'expand_less' : 'expand_more'"></v-icon>
+                    </div>
+                    <transition-expand>
+                        <ul v-if="display_latest_activity_details" class="latest_activity_details">
+                            <li><strong>Updated:</strong> {{ displayDate(latestActivity.timestamp) }}</li>
+                            <li>
+                                <strong>Action:</strong>
+                                &nbsp;
+                                <v-chip v-if="latestActivity.action === 'update'" class="update" small label disabled>UPDATE</v-chip>
+                                <v-chip v-else-if="latestActivity.action === 'create'" class="create" small label disabled>CREATE</v-chip>
+                                <v-chip v-else-if="latestActivity.action === 'delete'" class="delete" small label disabled>DELETE</v-chip>
+                                <v-chip v-else small label disabled>{{ latestActivity.action.toUpperCase() }}</v-chip>
+                                &nbsp;
+                                <v-chip small label disabled>
+                                    {{ latestActivity.collection }}
+                                    <template v-if="latestActivity.item">#{{ latestActivity.item }}</template>
+                                </v-chip>
+                            </li>
+                            <li><strong>User:</strong> {{ latestActivity.user.first_name }} {{ latestActivity.user.last_name }}</li>
+                        </ul>
+                    </transition-expand>
+                </div>
             </v-card-text>
+
+            <br />
             
             <!-- General Actions -->
+            <v-card-actions v-if="!isPublishedLatest">
+                <v-button class="success" v-on:click="publish" v-bind:disabled="isBuilding || isPublishing">
+                    <v-icon name="public"></v-icon>&nbsp;Publish Latest Deploy
+                </v-button>
+            </v-card-actions>
             <v-card-actions>
-                <v-button class="warning" v-on:click="build" v-bind:disabled="isBuilding">
+                <v-button class="warning" v-on:click="build" v-bind:disabled="isBuilding || isPublishing">
                     <v-icon name="build"></v-icon>&nbsp;Build
                 </v-button>
                 <v-button v-bind:href="site.url">
@@ -56,8 +111,7 @@
 </template>
 
 <script>
-    import config from '../../../config.js';
-    import { startBuild, lockDeploy, unlockDeploy } from '../api.js';
+    import { startBuild, publishDeploy, lockDeploy, unlockDeploy } from '../api.js';
 
     export default {
         inject: ['api'],
@@ -71,6 +125,14 @@
                 type: Object,
                 required: true
             },
+            latestDeploy: {
+                type: Object,
+                required: true
+            },
+            latestActivity: {
+                type: Object,
+                required: true
+            },
             isBuilding: {
                 type: Boolean,
                 required: true
@@ -78,13 +140,20 @@
             updateAvailable: {
                 type: Boolean,
                 required: true
+            },
+            isPublishedLatest: {
+                type: Boolean,
+                required: false
             }
         },
 
         data: function() {
             return {
                 building: false,
-                autoPublishUpdating: false
+                publishing: false,
+                autoPublishUpdating: false,
+                display_published_deploy_details: false,
+                display_latest_activity_details: false
             }
         },
 
@@ -121,7 +190,7 @@
              * @param {Date} date Date to format
              */
             displayDate: function(date) {
-                return new Date(date).toLocaleString();
+                return date ? new Date(date).toLocaleString() : '';
             },
 
             /**
@@ -132,6 +201,19 @@
                 let s = hash.substring(0, 4);
                 let e = hash.substring(hash.length-4);
                 return `<span style='font-family: monospace'>${s}...${e}</span>`;
+            },
+
+            /**
+             * Publish the Latest Deploy
+             */
+            publish: async function() {
+                let vm = this;
+                vm.isPublishing = true;
+                publishDeploy(vm.api, vm.latestDeploy.id).then(function() {
+                    vm.isPublishing = false;
+                    vm.$emit('update');
+                });
+                vm.$emit('update');
             },
 
             /**
@@ -183,5 +265,32 @@
         --v-button-background-color: var(--warning);
         --v-button-color-hover: var(--warning-alt);
         --v-button-background-color-hover: var(--warning-125);
+    }
+    .site-card .v-button.success {
+        --v-button-color: var(--success-alt);
+        --v-button-background-color: var(--success);
+        --v-button-color-hover: var(--success-alt);
+        --v-button-background-color-hover: var(--success-125);
+    }
+    .site-card-details-toggle {
+        display: flex; 
+        justify-content: space-between;
+        cursor: pointer;
+    }
+    .site-card-details-toggle-icon {
+        color: var(--foreground-subdued);
+    }
+
+    .v-chip.update {
+        --v-chip-color:var(--blue); 
+        --v-chip-background-color:var(--blue-25);
+    }
+    .v-chip.create {
+        --v-chip-color:var(--primary);
+        --v-chip-background-color:var(--primary-25);
+    }
+    .v-chip.delete {
+        --v-chip-color:var(--danger);
+        --v-chip-background-color:var(--danger-25);
     }
 </style>
