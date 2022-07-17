@@ -4,6 +4,7 @@
         <!-- Site Card -->
         <v-card class="site-card">
             
+            <!-- Site Status Info -->
             <div v-if="!isBuilding && updateAvailable" class="site-card-update site-card-update-available">
                 <p>
                     <v-icon name="update"></v-icon>&nbsp;&nbsp;Updates Available
@@ -23,6 +24,8 @@
             <v-card-subtitle>{{ site.url }}</v-card-subtitle>
         
             <v-card-text>
+
+                <!-- Netlify Status -->
                 <p><strong>State:</strong> {{ site.state }}</p>
                 <p><strong>Last Updated:</strong> {{ displayDate(site.updated_at) }}</p>
                 <div style="display: flex; align-items: center; gap: 10px">
@@ -31,38 +34,65 @@
                 </div>
                 <br />
 
-                <template v-if="publishedDeploy">
-                    <p><strong>Published Deploy:</strong></p>
-                    <ul class="published_deploy_details">
-                        <li><strong>ID:</strong>  <span v-html="displayHash(publishedDeploy.id)"></span></li>
-                        <li><strong>Created:</strong> {{ displayDate(publishedDeploy.created_at) }}</li>
-                        <li><strong>Published:</strong> {{ displayDate(publishedDeploy.published_at) }}</li>
-                        <li><strong>Branch:</strong> {{ publishedDeploy.branch }}</li>
-                    </ul>
-                </template>
+                <!-- Details of Published Deploy -->
+                <div class="site-card-details" v-if="publishedDeploy">
+                    <div class="site-card-details-toggle" @click="display_published_deploy_details = !display_published_deploy_details">
+                        <p>
+                            <strong>Published Deploy:</strong>
+                            <template v-if="!display_published_deploy_details">&nbsp;{{ displayDate(publishedDeploy.created_at) }}</template>
+                        </p>
+                        <v-icon class="site-card-details-toggle-icon" :name="display_published_deploy_details ? 'expand_less' : 'expand_more'"></v-icon>
+                    </div>
+                    <transition-expand>
+                        <ul v-if="display_published_deploy_details" class="published_deploy_details">
+                            <li><strong>ID:</strong>  <span v-html="displayHash(publishedDeploy.id)"></span></li>
+                            <li><strong>Created:</strong> {{ displayDate(publishedDeploy.created_at) }}</li>
+                            <li><strong>Published:</strong> {{ displayDate(publishedDeploy.published_at) }}</li>
+                            <li><strong>Branch:</strong> {{ publishedDeploy.branch }}</li>
+                        </ul>
+                    </transition-expand>
+                </div>
                 <v-notice v-else type="warning" center>Site not yet published</v-notice>
-                <br />
 
-                <template v-if="latestActivity">
-                    <p><strong>Last Database Update:</strong></p>
-                    <ul class="latest_activity_details">
-                        <li><strong>Updated:</strong> {{ displayDate(latestActivity.timestamp) }}</li>
-                        <li>
-                            <strong>Action:</strong>
-                            &nbsp;
-                            <v-chip v-if="latestActivity.action === 'update'" class="update" small label disabled>UPDATE</v-chip>
-                            <v-chip v-else-if="latestActivity.action === 'create'" class="create" small label disabled>CREATE</v-chip>
-                            <v-chip v-else-if="latestActivity.action === 'delete'" class="delete" small label disabled>DELETE</v-chip>
-                            <v-chip v-else small label disabled>{{ latestActivity.action.toUpperCase() }}</v-chip>
-                            &nbsp;
-                            <v-chip small label disabled>{{ latestActivity.collection }}</v-chip>
-                        </li>
-                        <li><strong>User:</strong> {{ latestActivity.user.first_name }} {{ latestActivity.user.last_name }}</li>
-                    </ul>
-                </template>
+                <!-- Details of Latest DB Activity -->
+                <div class="site-card-details" v-if="latestActivity">
+                    <div class="site-card-details-toggle" @click="display_latest_activity_details = !display_latest_activity_details">
+                        <p>
+                            <strong>Last Database Update:</strong>
+                            <template v-if="!display_latest_activity_details">&nbsp;{{ displayDate(latestActivity.timestamp) }}</template>
+                        </p>
+                        <v-icon class="site-card-details-toggle-icon" :name="display_latest_activity_details ? 'expand_less' : 'expand_more'"></v-icon>
+                    </div>
+                    <transition-expand>
+                        <ul v-if="display_latest_activity_details" class="latest_activity_details">
+                            <li><strong>Updated:</strong> {{ displayDate(latestActivity.timestamp) }}</li>
+                            <li>
+                                <strong>Action:</strong>
+                                &nbsp;
+                                <v-chip v-if="latestActivity.action === 'update'" class="update" small label disabled>UPDATE</v-chip>
+                                <v-chip v-else-if="latestActivity.action === 'create'" class="create" small label disabled>CREATE</v-chip>
+                                <v-chip v-else-if="latestActivity.action === 'delete'" class="delete" small label disabled>DELETE</v-chip>
+                                <v-chip v-else small label disabled>{{ latestActivity.action.toUpperCase() }}</v-chip>
+                                &nbsp;
+                                <v-chip small label disabled>
+                                    {{ latestActivity.collection }}
+                                    <template v-if="latestActivity.item">#{{ latestActivity.item }}</template>
+                                </v-chip>
+                            </li>
+                            <li><strong>User:</strong> {{ latestActivity.user.first_name }} {{ latestActivity.user.last_name }}</li>
+                        </ul>
+                    </transition-expand>
+                </div>
             </v-card-text>
+
+            <br />
             
             <!-- General Actions -->
+            <v-card-actions v-if="!isPublishedLatest">
+                <v-button class="success" v-on:click="publish" v-bind:disabled="isBuilding || isPublishing">
+                    <v-icon name="public"></v-icon>&nbsp;Publish Latest Deploy
+                </v-button>
+            </v-card-actions>
             <v-card-actions>
                 <v-button class="warning" v-on:click="build" v-bind:disabled="isBuilding || isPublishing">
                     <v-icon name="build"></v-icon>&nbsp;Build
@@ -72,11 +102,6 @@
                 </v-button>
                 <v-button v-bind:href="site.admin_url" icon>
                     <v-icon name="settings"></v-icon>
-                </v-button>
-            </v-card-actions>
-            <v-card-actions v-if="!isPublishedLatest">
-                <v-button class="success" v-on:click="publish" v-bind:disabled="isBuilding || isPublishing">
-                    <v-icon name="public"></v-icon>&nbsp;Publish Latest Deploy
                 </v-button>
             </v-card-actions>
             
@@ -126,7 +151,9 @@
             return {
                 building: false,
                 publishing: false,
-                autoPublishUpdating: false
+                autoPublishUpdating: false,
+                display_published_deploy_details: false,
+                display_latest_activity_details: false
             }
         },
 
@@ -163,7 +190,7 @@
              * @param {Date} date Date to format
              */
             displayDate: function(date) {
-                return new Date(date).toLocaleString();
+                return date ? new Date(date).toLocaleString() : '';
             },
 
             /**
@@ -244,6 +271,14 @@
         --v-button-background-color: var(--success);
         --v-button-color-hover: var(--success-alt);
         --v-button-background-color-hover: var(--success-125);
+    }
+    .site-card-details-toggle {
+        display: flex; 
+        justify-content: space-between;
+        cursor: pointer;
+    }
+    .site-card-details-toggle-icon {
+        color: var(--foreground-subdued);
     }
 
     .v-chip.update {
