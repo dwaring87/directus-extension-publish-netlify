@@ -3,7 +3,7 @@
   "description": "A Directus extension that can be used to manage and run Netlify builds of your static site after updating your content in Directus",
   "license": "MIT",
   "icon": "extension",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "keywords": [
     "directus",
     "directus-extension",
