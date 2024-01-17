@@ -1,7 +1,7 @@
 
-# Directus Extension: dwaring87-publish-netlify
+# Directus Extension: directus-extension-publish-netlify
 
-A Directus v9 Extension (including a frontend app module and backend API endpoints) for managing builds and deploys of a Netlify site.
+A Directus Extension bundle (including a frontend app module and backend API endpoints) for managing builds and deploys of a Netlify site.
 
 ![Main Module Interface](https://user-images.githubusercontent.com/7526014/137394029-05ac81cb-d985-4e47-8e8a-56a9e75dda6d.png)
 
@@ -11,48 +11,44 @@ This was developed to make it easier for an admin user of the Directus app to st
 
 ## Installation
 
-This repository includes two extensions (packaged as npm workspaces): 
+For the most up-to-date information about installing extensions, see the [Directus Docs](https://docs.directus.io/extensions/installing-extensions.html).
 
-- **directus-module-publish-netlify:** A frontend app module that the allows the user to initiate a Netlify build and manage the published deploy
-- **directus-endpoint-publish-netlify:** A set of backend API endpoints that are used to interact with the Netlify API
+### Via NPM
 
-### Install
+This extension can be installed directly from npm: `pnpm install directus-extension-publish-netlify`
 
-Install the node dependencies:
+### Manually
+
+This extension can also be installed manually from the source code in the Directus extensions directory.
+
+1) Clone the repository into the Directus extensions directory
 
 ```
+git clone git@github.com:dwaring87/directus-extension-publish-netlify /PATH_TO_DIRECTUS/extensions/directus-extension-publish-netlify
+```
+
+2) Install dependencies
+
+```
+cd /PATH_TO_DIRECTUS/extensions/directus-extension-publish-netlify
 npm install
 ```
 
-### Build
-
-The app module needs to be built from source (using rollup) before it can be deployed.  To use the included `build` script:
+3) Build the Extension
 
 ```
 npm run build
 ```
 
-### Deploy
-
-The (built) app module and API endpoint need to be installed in the Directus extensions directory (by default `./extensions/modules` and `./extensions/endpoints`).  First, set the `DIRECTUS_EXTENSIONS_PATH` environment variable to the path of the Directus extensions directory (either directly or by setting it in a .env file in the repository root directory).  Then, use the included `deploy` script to copy the appropriate files:
-
-```
-DIRECTUS_EXTENSIONS_PATH=/directus/extensions npm run deploy
-```
-
-To manually install the extensions into Directus, copy:
-
-- `./config.js` --> `/directus/extensions/endpoints/dwaring87-publish-netlify/config.js`
-- `./directus-endpoint-publish-netlify/src/index.js` --> `/directus/extensions/endpoints/dwaring87-publish-netlify/index.js`
-- `./directus-module-publish-netlify/dist/index.js` --> `/directus/extensions/modules/dwaring87-publish-netlify/index.js`
+4) Restart Directus
 
 ## Configuration
 
 Some advanced configuration options can be set in the `config.js` file before the extension is built and deployed:
 
 ```js
-module.exports  = {
-    "extension":  "dwaring87-publish-netlify",
+export default {
+    "extension":  "directus-extension-publish-netlify",
     "activityFilter": {
         "action": {
             "_nin": ["login", "comment"]
@@ -62,8 +58,7 @@ module.exports  = {
         }
     },
     "additional_role_ids": ["bdc0ea73-1b18-4a2a-a2dd-dc5c6d139810"],
-    "deploy_history_count":  25,
-    "extension_path_env_var":  "DIRECTUS_EXTENSIONS_PATH"
+    "deploy_history_count":  25
 }
 ```
 
@@ -101,7 +96,7 @@ There are two environment variables that need to be set before the extension can
 
 ### Enable
 
-The custom module will need to be first enabled in the Directus app's settings.  Go to the **Settings** module, **Project Settings** page, and enable the *Publish, /dwaring87-publish-netlify* module in the **Modules** section.
+The custom module will need to be first enabled in the Directus app's settings.  Go to the **Settings** module, **Settings** page, and enable the *Publish, /directus-extension-publish-netlify* module in the **Modules** section.
 
 ### Build
 
