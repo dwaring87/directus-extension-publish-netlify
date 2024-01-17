@@ -4,8 +4,6 @@ import config from '../../config';
 export default {
   id: 'directus-extension-publish-netlify',
   handler: (router, { env }) => {
-    console.log("ENDPOINT HANDLER");
-    console.log(env, 'env');
 
     // Netlify API Environment Variables
     const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
@@ -133,8 +131,6 @@ export default {
     * Return with an error if not an admin
     */
     function _checkAuth(req, res, next) {
-      console.log("CHECK AUTH:");
-      console.log(req.accountability);
       if ( req.accountability.admin || (req.accountability.app && config.additional_role_ids && config.additional_role_ids.includes(req.accountability.role)) ) {
         next();
       }
