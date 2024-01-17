@@ -13,18 +13,10 @@ This was developed to make it easier for an admin user of the Directus app to st
 
 For the most up-to-date information about installing extensions, see the [Directus Docs](https://docs.directus.io/extensions/installing-extensions.html).
 
-### Via NPM
-
-This extension can be installed directly from npm: `pnpm install directus-extension-publish-netlify`
-
-### Manually
-
-This extension can also be installed manually from the source code in the Directus extensions directory.
-
 1) Clone the repository into the Directus extensions directory
 
 ```
-git clone git@github.com:dwaring87/directus-extension-publish-netlify /PATH_TO_DIRECTUS/extensions/directus-extension-publish-netlify
+git clone https://github.com/dwaring87/directus-extension-publish-netlify /PATH_TO_DIRECTUS/extensions/directus-extension-publish-netlify
 ```
 
 2) Install dependencies
