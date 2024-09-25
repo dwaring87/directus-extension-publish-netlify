@@ -1,0 +1,16 @@
+services:
+  directus:
+    image: directus/directus
+    ports:
+      - 8055:8055
+    volumes:
+      - ./:/directus/extensions/directus-extension-publish-netlify
+    environment:
+      KEY: directus_key
+      SECRET: directus_secret
+      ADMIN_EMAIL: admin@admin.com
+      ADMIN_PASSWORD: admin
+      PUBLIC_URL: "http://localhost:8055"
+      EXTENSIONS_AUTO_RELOAD: true
+      NETLIFY_SITE: ${NETLIFY_SITE}
+      NETLIFY_TOKEN: ${NETLIFY_TOKEN}

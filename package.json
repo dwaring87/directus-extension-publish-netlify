@@ -1,0 +1,56 @@
+{
+  "name": "directus-extension-publish-netlify",
+  "description": "A Directus extension that can be used to manage and run Netlify builds of your static site after updating your content in Directus",
+  "icon": "extension",
+  "version": "2.0.0",
+  "keywords": [
+    "directus",
+    "directus-extension",
+    "directus-extension-bundle",
+    "netlify",
+    "static-site-generator"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "directus:extension": {
+    "type": "bundle",
+    "partial": false,
+    "path": {
+      "app": "dist/app.js",
+      "api": "dist/api.js"
+    },
+    "entries": [
+      {
+        "type": "endpoint",
+        "name": "directus-extension-publish-netlify-endpoint",
+        "source": "src/directus-extension-publish-netlify-endpoint/index.js"
+      }
+    ],
+    "host": "^10.10.0",
+    "sandbox": {
+      "enabled": true,
+      "requestedScopes": {
+        "request": {
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "urls": [
+            "https://api.netlify.com/*"
+          ]
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "link": "directus-extension link",
+    "add": "directus-extension add"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "12.0.2"
+  }
+}
