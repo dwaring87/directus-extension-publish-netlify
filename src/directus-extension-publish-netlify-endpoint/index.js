@@ -1,13 +1,64 @@
 import https from 'https';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import config from '../../config';
+
+// EXTENSION SETTINGS FILE
+const FILE = "settings.json";
+const PATH = fileURLToPath(new URL(FILE, import.meta.url));
+
+// NETLIFY SETTINGS
+let NETLIFY_SITE;
+let NETLIFY_TOKEN;
+let NETLIFY_SOURCE;
+
+// Read the Settings file and set NETLIFY_SOURCE and NETLIFY_TOKEN, 
+// if the settings source is set to 'file'
+const _readSettings = () => {
+  try {
+    if ( existsSync(PATH) ) {
+      const data = readFileSync(PATH, 'utf-8');
+      const parsed = JSON.parse(data) || {};
+      if ( NETLIFY_SOURCE === 'file' ) {
+        NETLIFY_SITE = parsed.netlify_site;
+        NETLIFY_TOKEN = parsed.netlify_token;
+      }
+    }
+  }
+  catch (err) {
+    console.log(`ERROR: Could not read extension settings [${err}]`);
+  }
+}
+
+// Write the settings to the settings file
+const _writeSettings = (netlify_site, netlify_token) => {
+  try {
+    netlify_token = netlify_token.includes('*') ? NETLIFY_TOKEN : netlify_token;
+    const s = JSON.stringify({ netlify_site, netlify_token });
+    writeFileSync(PATH, s, 'utf-8');
+  }
+  catch (err) {
+    console.log(`ERROR: Could not write extension settings [${err}]`);
+  }
+}
 
 export default {
   id: config.extension,
-  handler: (router, { env }) => {
+  handler: async (router, { env }) => {
 
-    // Netlify API Environment Variables
-    const NETLIFY_TOKEN = env.NETLIFY_TOKEN;
-    const NETLIFY_SITE = env.NETLIFY_SITE;
+    // Pull settings from environment variables
+    if ( env.NETLIFY_SITE && env.NETLIFY_TOKEN ) {
+      NETLIFY_SITE = env.NETLIFY_SITE;
+      NETLIFY_TOKEN = env.NETLIFY_TOKEN;
+      NETLIFY_SOURCE = "environment";
+    }
+
+    // Pull settings from extension settings file
+    else {
+      NETLIFY_SOURCE = "file";
+      _readSettings();
+    }
+
 
     // Cached Netlify Site ID (used by other API requests)
     let NETLIFY_SITE_ID = undefined;
@@ -19,15 +70,56 @@ export default {
 
 
     /**
+     * GET /settings
+     * Get the extension settings
+     */
+    router.get('/settings', _checkAuth, async (req, res) => {
+      let masked_token;
+      if ( NETLIFY_TOKEN ) {
+        const start = 8;
+        const end = 4;
+        if ( NETLIFY_TOKEN.length > start+end ) {
+          masked_token = NETLIFY_TOKEN.slice(0, start);
+          masked_token += "*".repeat(NETLIFY_TOKEN.length-start-end);
+          masked_token += NETLIFY_TOKEN.slice(NETLIFY_TOKEN.length-end);
+        }
+        else {
+          masked_token = NETLIFY_TOKEN;
+        }
+      }
+
+      return res.send({
+        settings: {
+          site: NETLIFY_SITE,
+          token: masked_token,
+          source: NETLIFY_SOURCE
+        }
+      });
+    });
+
+
+    /**
+     * POST /settings
+     * Update the saved netlify_site and netlify_token settings
+     */
+    router.post('/settings', _checkAuth, async (req, res) => {
+      const { netlify_site, netlify_token } = req.body || {};
+      _writeSettings(netlify_site, netlify_token);
+      _readSettings();
+      return res.send();
+    });
+
+
+    /**
      * GET /site
      * Get the info for the configured Netlify site
      */
     router.get('/site', _checkAuth, async (req, res) => {
-      if ( !NETLIFY_TOKEN || NETLIFY_TOKEN === "" ) {
-        return res.send({ error: "NETLIFY_TOKEN environment variable not set" });
-      }
       if ( !NETLIFY_SITE || NETLIFY_SITE === "" ) {
-        return res.send({ error: "NETLIFY_SITE environment variable not set" });
+        return res.send({ error: "NETLIFY_SITE not set. Go to the Extension Settings to set the Netlify Site ID." });
+      }
+      if ( !NETLIFY_TOKEN || NETLIFY_TOKEN === "" ) {
+        return res.send({ error: "NETLIFY_TOKEN not set. Go to the Extension Settings to set the Netlify API token." });
       }
 
       try {

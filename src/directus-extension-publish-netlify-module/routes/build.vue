@@ -1,11 +1,25 @@
 <template>
   <private-view title="Build Site">
-    <template #headline>Publish</template>
+    <template #headline>Publish to Netlify</template>
 
     <template #title-outer:prepend>
       <v-button class="header-icon" rounded disabled icon secondary>
         <v-icon name="build" />
       </v-button>
+    </template>
+
+    <!-- Navigation -->
+    <template #navigation>
+      <v-list nav>
+        <v-list-item :to="`/${extension}`" key="build.build" active>
+          <v-list-item-icon><v-icon name="build" /></v-list-item-icon>
+          <v-list-item-content><v-text-overflow text="Build" /></v-list-item-content>
+        </v-list-item>
+        <v-list-item :to="`/${extension}/settings`" key="build.settings">
+          <v-list-item-icon><v-icon name="settings" /></v-list-item-icon>
+          <v-list-item-content><v-text-overflow text="Settings" /></v-list-item-content>
+        </v-list-item>
+      </v-list>
     </template>
 
     <!-- Loading -->
@@ -52,6 +66,7 @@
   import Deploys from '../components/deploys.vue';
   import Dialog from '../components/dialog.vue';
   import { getSite, getDeploys, getLatestDirectusActivity } from '../api';
+  import config from '../../../config';
 
   export default {
     inject: ['api'],
@@ -60,6 +75,7 @@
 
     data() {
       return {
+        extension: config?.extension,
         loading: true,
         setupTitle: undefined,
         setupMessage: undefined,

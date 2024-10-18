@@ -1,6 +1,30 @@
 import config from '../../config'
 
 /**
+ * Get the extension settings
+ * @param {API} api Directus API
+ * @returns {Object} Extension Settings
+ */
+const getSettings = async(api) => {
+  const { data } = await api.get(`/${config.extension}/settings`);
+  if ( data && data.error ) throw new Error(data.error);
+  return data && data.settings ? data.settings : {};
+}
+
+/**
+ * Save the extension settings
+ * @param {API} api Directus API
+ * @param {String} netlify_site Netlify Site ID
+ * @param {String} netlify_token Netlify Token
+ * @returns {Promise<Boolean>} Update status
+ */
+const saveSettings = async (api, netlify_site, netlify_token) => {
+  const { data } = await api.post(`/${config.extension}/settings`, { netlify_site, netlify_token});
+  if ( data && data.error ) throw new Error(data.error);
+  return data && data.success ? data.success : false;
+}
+
+/**
  * Get the info for the configured Netlify site
  * @param {API} api Directus API
  * @returns {Object} Site info
@@ -78,5 +102,14 @@ const getLatestDirectusActivity = async (api) => {
   return data && data.data && data.data.length > 0 ? data.data[0] : undefined;
 }
 
-export { getSite, getDeploys, getLatestDirectusActivity,
-    startBuild, lockDeploy, unlockDeploy, publishDeploy };
+export {
+  getSettings,
+  saveSettings,
+  getSite,
+  getDeploys,
+  getLatestDirectusActivity,
+  startBuild,
+  lockDeploy,
+  unlockDeploy,
+  publishDeploy
+};

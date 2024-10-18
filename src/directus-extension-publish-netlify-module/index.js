@@ -1,4 +1,5 @@
 import BuildComponent from './routes/build.vue';
+import SettingsComponent from './routes/settings.vue';
 import config from '../../config';
 
 export default {
@@ -10,6 +11,10 @@ export default {
       path: '',
       component: BuildComponent,
     },
+    {
+      path: 'settings',
+      component: SettingsComponent
+    }
   ],
   preRegisterCheck(user) {
 		// Allow access to the module if:
